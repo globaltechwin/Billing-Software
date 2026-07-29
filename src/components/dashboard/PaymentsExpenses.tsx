@@ -1,0 +1,66 @@
+"use client";
+
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+} from "recharts";
+import { ChevronUp, Settings, X } from "lucide-react";
+
+const data: { label: string; value: number }[] = [];
+
+export default function PaymentsExpenses() {
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+        <h3 className="text-base font-bold text-gray-800">
+          Payments / Expenses
+        </h3>
+        <div className="flex items-center gap-1.5">
+          <button className="p-1.5 hover:bg-gray-100 rounded-md transition-colors">
+            <ChevronUp size={16} className="text-gray-400" />
+          </button>
+          <button className="p-1.5 hover:bg-gray-100 rounded-md transition-colors">
+            <Settings size={16} className="text-gray-400" />
+          </button>
+          <button className="p-1.5 hover:bg-gray-100 rounded-md transition-colors">
+            <X size={16} className="text-gray-400" />
+          </button>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div className="flex-1 p-5 min-h-[280px]">
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart
+            data={data}
+            margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="#f0f0f0"
+              vertical={false}
+            />
+            <XAxis
+              tick={{ fontSize: 11, fill: "#9ca3af" }}
+              axisLine={{ stroke: "#e5e7eb" }}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "#9ca3af" }}
+              axisLine={false}
+              tickLine={false}
+              domain={[-1, 1]}
+              ticks={[-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1]}
+            />
+            <Bar dataKey="value" fill="#e5e7eb" barSize={40} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
