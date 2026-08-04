@@ -1,11 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { sampleProducts } from "@/components/product/data";
-import { sampleBranches } from "@/components/branch-master/data";
+
+interface Product {
+  id: number;
+  productName: string;
+  productCode: string | null;
+  unit: string;
+  sellingPrice: number;
+  isActive: boolean;
+}
 
 interface PlanningItem {
   id: string;
+  productId: number;
   productName: string;
   uom: string;
   quantity: number;
@@ -22,7 +30,6 @@ const PRODUCTION_CATEGORIES = [
 ];
 
 export default function PlanningPage() {
-  const today = new Date().toLocaleDateString("en-GB");
   const [requestDate, setRequestDate] = useState(() => {
     const d = new Date();
     const dd = String(d.getDate()).padStart(2, "0");
@@ -36,17 +43,27 @@ export default function PlanningPage() {
   const [remarks, setRemarks] = useState("");
   const [items, setItems] = useState<PlanningItem[]>([]);
   const [editingQty, setEditingQty] = useState<string | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [saving, setSaving] = useState(false);
+  const itemIdCounter = useRef(0);
 
   const productInputRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    fetch("/api/products")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) setProducts(d.products.filter((p: Product) => p.isActive));
+      })
+      .catch(() => {});
+  }, []);
+
   const filteredProducts = useMemo(() => {
-    if (!productSearch) return sampleProducts.filter((p) => p.status === "Active");
+    if (!productSearch) return products;
     const q = productSearch.toLowerCase();
-    return sampleProducts.filter(
-      (p) => p.status === "Active" && p.name.toLowerCase().includes(q)
-    );
-  }, [productSearch]);
+    return products.filter((p) => p.productName.toLowerCase().includes(q));
+  }, [productSearch, products]);
 
   const totalAmount = useMemo(
     () => items.reduce((sum, item) => sum + item.totalPrice, 0),
@@ -68,21 +85,22 @@ export default function PlanningPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleProductSelect = (product: (typeof sampleProducts)[0]) => {
-    const exists = items.find((i) => i.productName === product.name);
+  const handleProductSelect = (product: Product) => {
+    const exists = items.find((i) => i.productName === product.productName);
     if (exists) {
       setItems((prev) =>
         prev.map((i) =>
-          i.productName === product.name
+          i.productName === product.productName
             ? { ...i, quantity: i.quantity + 1, totalPrice: (i.quantity + 1) * i.price }
             : i
         )
       );
     } else {
       const newItem: PlanningItem = {
-        id: String(Date.now()),
-        productName: product.name,
-        uom: product.uom,
+        id: `item-${itemIdCounter.current++}`,
+        productId: product.id,
+        productName: product.productName,
+        uom: product.unit,
         quantity: 1,
         price: product.sellingPrice,
         totalPrice: product.sellingPrice,
@@ -95,8 +113,8 @@ export default function PlanningPage() {
 
   const handleAddProduct = () => {
     if (!productSearch) return;
-    const match = sampleProducts.find(
-      (p) => p.status === "Active" && p.name.toLowerCase() === productSearch.toLowerCase()
+    const match = products.find(
+      (p) => p.productName.toLowerCase() === productSearch.toLowerCase()
     );
     if (match) {
       handleProductSelect(match);
@@ -118,13 +136,44 @@ export default function PlanningPage() {
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (items.length === 0) {
       alert("Please add at least one product");
       return;
     }
-    alert("Production plan saved successfully!");
-    handleClear();
+    if (!productionCategory) {
+      alert("Please select a production category");
+      return;
+    }
+    if (saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/production-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productionCategory,
+          requestDate,
+          remarks,
+          items: items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            price: i.price,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.error || "Failed to save production plan");
+        return;
+      }
+      alert("Production plan saved successfully!");
+      handleClear();
+    } catch {
+      alert("Failed to save production plan");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleClear = () => {
@@ -140,12 +189,12 @@ export default function PlanningPage() {
 
   return (
     <div className="flex flex-col h-full p-4 gap-4">
-      <div className="flex gap-4">
+      <div className="flex flex-col xl:flex-row gap-4">
         {/* Left: Main Form Area */}
         <div className="flex-1 flex flex-col gap-4">
           {/* Title Bar */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 flex items-center justify-between">
+            <div className="px-6 py-4 flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-lg font-semibold text-gray-800">Production Planning</h2>
               <div className="flex items-center gap-3">
                 <label className="text-sm font-medium text-gray-700">Production Category</label>
@@ -166,7 +215,7 @@ export default function PlanningPage() {
 
           {/* Product Input Row */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 flex items-center gap-4">
+            <div className="px-6 py-4 flex flex-wrap items-center gap-4">
               <div className="flex-1 relative" ref={productInputRef}>
                 <input
                   type="text"
@@ -191,7 +240,7 @@ export default function PlanningPage() {
                         onClick={() => handleProductSelect(p)}
                         className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 transition-colors"
                       >
-                        {p.name}
+                        {p.productName}
                       </button>
                     ))}
                   </div>
@@ -212,7 +261,7 @@ export default function PlanningPage() {
           {/* Items Table */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="bg-[#3d9a7e] text-white">
                     <th className="px-4 py-3 text-center text-xs font-semibold w-[60px]">-</th>
@@ -286,7 +335,7 @@ export default function PlanningPage() {
         </div>
 
         {/* Right: Summary Panel */}
-        <div className="w-[280px] flex-shrink-0">
+        <div className="w-full xl:w-[280px] flex-shrink-0">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-5 py-5 flex flex-col gap-4">
               <div className="flex items-center gap-3">
@@ -314,7 +363,7 @@ export default function PlanningPage() {
 
               <div className="border-t border-gray-200 pt-4">
                 <span className="text-sm font-medium text-gray-700">Total</span>
-                <div className="text-xl font-bold text-orange-500 mt-1">
+                <div className="text-xl font-bold text-billora-primary mt-1">
                   {formatCurrency(totalAmount)}
                 </div>
               </div>

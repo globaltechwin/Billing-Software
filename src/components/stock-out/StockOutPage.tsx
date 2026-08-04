@@ -1,27 +1,87 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Search, X } from "lucide-react";
-import { stockOutProducts, departments, StockOutProduct, StockOutItem } from "./data";
+import { Search, X, Loader2 } from "lucide-react";
+import { StockOutItem, StockOutProduct } from "./data";
+
+const stockOutTypes = [
+  { value: "PRODUCTION", label: "Production" },
+  { value: "DAMAGE", label: "Damage" },
+  { value: "ADJUSTMENT", label: "Adjustment" },
+  { value: "BRANCH_TRANSFER", label: "Branch Transfer" },
+  { value: "OTHER", label: "Other" },
+];
+
+const departments = [
+  "Kitchen",
+  "Production",
+  "Housekeeping",
+  "Laundry",
+  "Store",
+];
+
+interface ApiProduct {
+  id: number;
+  productName: string;
+  unit: string;
+  currentStock: number;
+  purchasePrice: number;
+}
 
 export default function StockOutPage() {
-  const [indentNo, setIndentNo] = useState("");
-  const [planningNo, setPlanningNo] = useState("");
-  const [productSearch, setProductSearch] = useState("");
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<StockOutProduct | null>(null);
-  const [outQty, setOutQty] = useState("1");
-  const [items, setItems] = useState<StockOutItem[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
-  // Right panel
-  const [taxAmount, setTaxAmount] = useState("");
+  // Header fields
+  const [stockOutNo, setStockOutNo] = useState("SO-0001 (Auto)");
+  const [stockOutDate, setStockOutDate] = useState(() => {
+    const d = new Date();
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return `${yyyy}-${mm}-${dd}`;
+  });
+  const [stockOutType, setStockOutType] = useState("PRODUCTION");
+  const [referenceNumber, setReferenceNumber] = useState("");
   const [department, setDepartment] = useState("");
   const [branchOut, setBranchOut] = useState("");
   const [remarks, setRemarks] = useState("");
 
+  // Product selection
+  const [productSearch, setProductSearch] = useState("");
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [productsList, setProductsList] = useState<StockOutProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+
+  // Items table
+  const [items, setItems] = useState<StockOutItem[]>([]);
+
+  // Refs
   const productDropdownRef = useRef<HTMLDivElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch products from API
+  useEffect(() => {
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.products) {
+          const mapped: StockOutProduct[] = data.products
+            .filter((p: ApiProduct) => Number(p.currentStock) > 0)
+            .map((p: ApiProduct) => ({
+              id: String(p.id),
+              name: p.productName,
+              uom: p.unit,
+              currentStock: Number(p.currentStock),
+              price: Number(p.purchasePrice),
+            }));
+          setProductsList(mapped);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setProductsLoading(false));
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -35,34 +95,24 @@ export default function StockOutPage() {
   }, []);
 
   // Filter products
-  const filteredProducts = stockOutProducts.filter(
+  const filteredProducts = productsList.filter(
     (p) =>
       p.name.toLowerCase().includes(productSearch.toLowerCase()) &&
       !items.some((i) => i.product.id === p.id)
   );
 
-  // Select product
+  // Select product and auto-add
   const handleProductSelect = (product: StockOutProduct) => {
-    setSelectedProduct(product);
-    setProductSearch(product.name);
-    setShowProductDropdown(false);
-    setOutQty("1");
-  };
+    const qty = 1;
+    if (qty > product.currentStock) return;
 
-  // Add item
-  const handleAddItem = () => {
-    if (!selectedProduct) return;
-    const qty = parseInt(outQty);
-    if (isNaN(qty) || qty <= 0) return;
-    if (qty > selectedProduct.currentStock) return;
-
-    const existing = items.find((i) => i.product.id === selectedProduct.id);
+    const existing = items.find((i) => i.product.id === product.id);
     if (existing) {
       const newQty = existing.qty + qty;
       if (newQty > existing.product.currentStock) return;
       setItems((prev) =>
         prev.map((i) =>
-          i.product.id === selectedProduct.id
+          i.product.id === product.id
             ? { ...i, qty: newQty }
             : i
         )
@@ -70,23 +120,26 @@ export default function StockOutPage() {
     } else {
       setItems((prev) => [
         ...prev,
-        { id: Date.now().toString(), product: selectedProduct, qty },
+        { id: Date.now().toString(), product, qty },
       ]);
     }
 
-    setSelectedProduct(null);
     setProductSearch("");
-    setOutQty("1");
+    setShowProductDropdown(false);
   };
 
   // Handle qty change
   const handleQtyChange = (itemId: string, newQty: string) => {
-    const qty = parseInt(newQty);
+    const qty = parseFloat(newQty);
     if (newQty === "" || (!isNaN(qty) && qty >= 0)) {
       setItems((prev) =>
-        prev.map((i) =>
-          i.id === itemId ? { ...i, qty: newQty === "" ? 0 : qty } : i
-        )
+        prev.map((i) => {
+          if (i.id === itemId) {
+            const capped = Math.min(qty, i.product.currentStock);
+            return { ...i, qty: newQty === "" ? 0 : capped };
+          }
+          return i;
+        })
       );
     }
   };
@@ -97,36 +150,68 @@ export default function StockOutPage() {
   };
 
   // Totals
+  const totalQuantity = items.reduce((sum, i) => sum + i.qty, 0);
   const totalAmount = items.reduce((sum, i) => sum + i.product.price * i.qty, 0);
 
   // Save
-  const handleSave = () => {
+  const handleSave = async () => {
     if (items.length === 0) return;
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      setItems([]);
-      setProductSearch("");
-      setSelectedProduct(null);
-      setOutQty("1");
-      setRemarks("");
-      setIndentNo("");
-      setPlanningNo("");
-    }, 2000);
+    setSaving(true);
+    setSaveError("");
+    try {
+      const payload = {
+        stockOutType,
+        referenceNumber: referenceNumber || null,
+        notes: remarks || null,
+        items: items.map((item) => ({
+          productId: Number(item.product.id),
+          quantity: item.qty,
+        })),
+      };
+      const res = await fetch("/api/stock-outs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to save stock out");
+      }
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        handleClear();
+      }, 2000);
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Clear
   const handleClear = () => {
-    setItems([]);
-    setProductSearch("");
-    setSelectedProduct(null);
-    setOutQty("1");
-    setRemarks("");
-    setIndentNo("");
-    setPlanningNo("");
-    setTaxAmount("");
+    setStockOutNo("SO-0001 (Auto)");
+    setStockOutDate(() => {
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      return `${yyyy}-${mm}-${dd}`;
+    });
+    setStockOutType("PRODUCTION");
+    setReferenceNumber("");
     setDepartment("");
     setBranchOut("");
+    setRemarks("");
+    setItems([]);
+    setProductSearch("");
+    setSaveError("");
+  };
+
+  // Cancel
+  const handleCancel = () => {
+    handleClear();
   };
 
   // Keyboard shortcuts
@@ -140,80 +225,162 @@ export default function StockOutPage() {
         e.preventDefault();
         productInputRef.current?.focus();
       }
+      if (e.key === "Escape") {
+        setSaveError("");
+      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   });
 
+  const formatCurrency = (amount: number) => amount.toFixed(2);
+
   return (
-    <div className="flex gap-4 p-4 h-full">
+    <div className="flex flex-col xl:flex-row gap-4 p-4 h-full">
       {/* Success Toast */}
       {showSuccess && (
         <div className="fixed top-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm font-medium">
           Stock Out saved successfully!
         </div>
       )}
+      {saveError && (
+        <div className="fixed top-20 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm font-medium">
+          {saveError}
+        </div>
+      )}
 
       {/* Left Panel - Main Content */}
-      <div className="flex-[7] flex flex-col gap-4">
+      <div className="xl:flex-[7] flex flex-col gap-4">
         {/* Title Row */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-gray-800">Stock Out</h1>
-          <button className="text-gray-400 hover:text-gray-600">
-            <Search className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button className="text-gray-400 hover:text-gray-600">
+              <Search className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Indent + Planning + Product Row */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-4 flex flex-col gap-4">
-          {/* Indent + Planning */}
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 font-medium whitespace-nowrap">Indent No.</label>
+        {/* Header Fields */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-4">
+          <div className="grid grid-cols-4 gap-4">
+            {/* Stock Out No. */}
+            <div>
+              <label className="block text-sm text-gray-700 font-medium mb-1">
+                Stock Out No.<span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
-                value={indentNo}
-                onChange={(e) => setIndentNo(e.target.value)}
-                className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={stockOutNo}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-gray-50 text-gray-500"
               />
-              <button className="text-gray-400 hover:text-gray-600">
-                <Search className="w-5 h-5" />
-              </button>
             </div>
-
-            <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 font-medium whitespace-nowrap">Planning No.</label>
+            {/* Date */}
+            <div>
+              <label className="block text-sm text-gray-700 font-medium mb-1">
+                Date<span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={stockOutDate}
+                onChange={(e) => setStockOutDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            {/* Stock Out Type */}
+            <div>
+              <label className="block text-sm text-gray-700 font-medium mb-1">
+                Stock Out Type<span className="text-red-500">*</span>
+              </label>
+              <select
+                value={stockOutType}
+                onChange={(e) => setStockOutType(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {stockOutTypes.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            {/* Reference Number */}
+            <div>
+              <label className="block text-sm text-gray-700 font-medium mb-1">Reference Number</label>
               <input
                 type="text"
-                value={planningNo}
-                onChange={(e) => setPlanningNo(e.target.value)}
-                className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={referenceNumber}
+                onChange={(e) => setReferenceNumber(e.target.value)}
+                placeholder="Reference Number"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <button className="text-gray-400 hover:text-gray-600">
-                <Search className="w-5 h-5" />
-              </button>
             </div>
           </div>
 
-          {/* Product Search */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="relative flex-1 max-w-lg" ref={productDropdownRef}>
+          <div className="grid grid-cols-4 gap-4 mt-4">
+            {/* Department */}
+            <div>
+              <label className="block text-sm text-gray-700 font-medium mb-1">Department</label>
+              <select
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">--Select Department--</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            {/* Branch Out */}
+            <div>
+              <label className="block text-sm text-gray-700 font-medium mb-1">Branch Out</label>
+              <select
+                value={branchOut}
+                onChange={(e) => setBranchOut(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">--Select Branch--</option>
+                <option value="Main Branch">Main Branch</option>
+                <option value="Second Branch">Second Branch</option>
+              </select>
+            </div>
+            {/* Remarks */}
+            <div className="col-span-2">
+              <label className="block text-sm text-gray-700 font-medium mb-1">Remarks</label>
               <input
-                ref={productInputRef}
                 type="text"
-                value={productSearch}
-                onChange={(e) => {
-                  setProductSearch(e.target.value);
-                  setShowProductDropdown(true);
-                  setSelectedProduct(null);
-                }}
-                onFocus={() => setShowProductDropdown(true)}
-                placeholder="Enter Product"
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                placeholder="Remarks"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              {showProductDropdown && filteredProducts.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-60 overflow-y-auto">
-                  {filteredProducts.map((product) => (
+            </div>
+          </div>
+        </div>
+
+        {/* Product Search */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-4 flex items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-lg" ref={productDropdownRef}>
+            <input
+              ref={productInputRef}
+              type="text"
+              value={productSearch}
+              onChange={(e) => {
+                setProductSearch(e.target.value);
+                setShowProductDropdown(true);
+              }}
+              onFocus={() => setShowProductDropdown(true)}
+              placeholder="Enter Product"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            {showProductDropdown && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-60 overflow-y-auto">
+                {productsLoading ? (
+                  <div className="px-4 py-3 text-sm text-gray-500">Loading products...</div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-gray-500">No products found</div>
+                ) : (
+                  filteredProducts.map((product) => (
                     <button
                       key={product.id}
                       onClick={() => handleProductSelect(product)}
@@ -224,25 +391,21 @@ export default function StockOutPage() {
                         {product.uom} | Stock: {product.currentStock}
                       </span>
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button
-              className="px-5 py-2.5 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors whitespace-nowrap"
-            >
-              Upload
-            </button>
-            <span className="bg-blue-500 text-white text-xs font-medium px-4 py-1.5 rounded whitespace-nowrap">
-              F1 – Save, F2 – Select product
-            </span>
+                  ))
+                )}
+              </div>
+            )}
           </div>
+
+          <span className="bg-blue-500 text-white text-xs font-medium px-4 py-1.5 rounded whitespace-nowrap">
+            F1 – Save, F2 – Select product
+          </span>
         </div>
 
         {/* Items Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
           <div className="overflow-x-auto flex-1">
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="bg-[#3d9a7e] text-white">
                   <th className="px-4 py-3 text-left w-12 text-xs font-semibold">-</th>
@@ -282,15 +445,15 @@ export default function StockOutPage() {
                         <td className="px-4 py-3">
                           <input
                             type="number"
-                            value={item.qty}
+                            value={item.qty || ""}
                             onChange={(e) => handleQtyChange(item.id, e.target.value)}
                             min="1"
                             max={item.product.currentStock}
                             className="w-20 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{item.product.price.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 font-medium">{total.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{formatCurrency(item.product.price)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 font-medium">{formatCurrency(total)}</td>
                       </tr>
                     );
                   })
@@ -302,87 +465,83 @@ export default function StockOutPage() {
       </div>
 
       {/* Right Panel */}
-      <div className="flex-[3] bg-white rounded-xl shadow-sm border border-gray-200 p-5 h-fit">
+      <div className="xl:flex-[3] bg-white rounded-xl shadow-sm border border-gray-200 p-5 h-fit">
         <div className="space-y-4">
-          {/* Tax Amount */}
-          <div>
-            <label className="block text-sm text-gray-700 font-medium mb-1">Tax Amount</label>
-            <input
-              type="number"
-              value={taxAmount}
-              onChange={(e) => setTaxAmount(e.target.value)}
-              placeholder="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          {/* Department */}
-          <div>
-            <label className="block text-sm text-gray-700 font-medium mb-1">Department</label>
-            <select
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">--Select Department--</option>
-              {departments.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Branch Out + AutoStockOut */}
-          <div>
-            <label className="block text-sm text-gray-700 font-medium mb-1">Branch Out</label>
-            <div className="flex items-center gap-2">
-              <select
-                value={branchOut}
-                onChange={(e) => setBranchOut(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">--Select Branch--</option>
-                <option value="Main Branch">Main Branch</option>
-                <option value="Second Branch">Second Branch</option>
-              </select>
-              <button className="px-3 py-2 bg-blue-500 text-white rounded-md text-xs font-medium hover:bg-blue-600 transition-colors whitespace-nowrap">
-                AutoStockOut
-              </button>
+          {/* Summary */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Stock Out No.</span>
+              <span className="text-sm font-medium text-gray-800">{stockOutNo}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Date</span>
+              <span className="text-sm font-medium text-gray-800">
+                {stockOutDate
+                  ? new Date(stockOutDate).toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    })
+                  : "-"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Type</span>
+              <span className="text-sm font-medium text-gray-800">
+                {stockOutTypes.find((t) => t.value === stockOutType)?.label || "-"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Department</span>
+              <span className="text-sm font-medium text-gray-800">{department || "-"}</span>
             </div>
           </div>
 
-          {/* Remarks */}
-          <div>
-            <label className="block text-sm text-gray-700 font-medium mb-1">Remarks</label>
-            <textarea
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Remarks"
-              rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-            />
+          {/* Divider */}
+          <div className="border-t border-gray-200 pt-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-700">Total Items</span>
+              <span className="text-sm font-medium text-gray-800">{items.length}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-700">Total Quantity</span>
+              <span className="text-sm font-medium text-gray-800">{totalQuantity}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-gray-800">Total Amount</span>
+              <span className="text-sm font-bold text-gray-800">{formatCurrency(totalAmount)}</span>
+            </div>
           </div>
 
-          {/* Total */}
-          <div className="border-t border-gray-200 pt-3">
-            <span className="text-sm text-gray-700 font-medium">Total</span>
-            <p className="text-lg font-bold text-emerald-600">{totalAmount.toFixed(2)}</p>
-          </div>
-
-          {/* Buttons */}
+          {/* Action Buttons */}
           <div className="flex gap-3 pt-2">
             <button
               onClick={handleSave}
-              disabled={items.length === 0}
-              className="px-6 py-2 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={items.length === 0 || saving}
+              className="flex-1 px-6 py-2 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               Save
             </button>
             <button
               onClick={handleClear}
-              className="px-6 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"
+              className="flex-1 px-6 py-2 bg-purple-600 text-white rounded-md text-sm font-medium hover:bg-purple-700 transition-colors"
             >
               Clear
             </button>
+            <button
+              onClick={handleCancel}
+              className="flex-1 px-6 py-2 bg-gray-200 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+
+          {/* Keyboard shortcut badge */}
+          <div className="flex justify-center pt-1">
+            <span className="bg-blue-500 text-white text-xs font-medium px-4 py-1.5 rounded whitespace-nowrap">
+              F1 – Save
+            </span>
           </div>
         </div>
       </div>

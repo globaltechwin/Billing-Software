@@ -12,21 +12,6 @@ interface ItemSalesRow {
   totalPrice: number;
 }
 
-const sampleItems: ItemSalesRow[] = [
-  { id: "1", sNo: 1, category: "Beverages", productName: "Cafe Latte", count: 45, totalPrice: 2925.0 },
-  { id: "2", sNo: 2, category: "Beverages", productName: "Cappuccino", count: 38, totalPrice: 2470.0 },
-  { id: "3", sNo: 3, category: "Beverages", productName: "Espresso", count: 52, totalPrice: 2600.0 },
-  { id: "4", sNo: 4, category: "Snacks", productName: "Veg Samosa", count: 30, totalPrice: 1200.0 },
-  { id: "5", sNo: 5, category: "Snacks", productName: "Chicken Patty", count: 22, totalPrice: 1540.0 },
-  { id: "6", sNo: 6, category: "Main Course", productName: "Paneer Butter Masala", count: 18, totalPrice: 3240.0 },
-  { id: "7", sNo: 7, category: "Main Course", productName: "Chicken Biryani", count: 25, totalPrice: 4375.0 },
-  { id: "8", sNo: 8, category: "Desserts", productName: "Chocolate Brownie", count: 15, totalPrice: 1125.0 },
-  { id: "9", sNo: 9, category: "Desserts", productName: "Gulab Jamun", count: 20, totalPrice: 800.0 },
-  { id: "10", sNo: 10, category: "Beverages", productName: "Cold Coffee", count: 35, totalPrice: 2625.0 },
-  { id: "11", sNo: 11, category: "Snacks", productName: "French Fries", count: 28, totalPrice: 1120.0 },
-  { id: "12", sNo: 12, category: "Main Course", productName: "Butter Naan", count: 40, totalPrice: 1200.0 },
-];
-
 export default function ItemsWiseSalesPage() {
   const today = new Date().toISOString().split("T")[0];
   const [activeTab, setActiveTab] = useState<"itemWise" | "billWise">("itemWise");
@@ -63,9 +48,28 @@ export default function ItemsWiseSalesPage() {
   const totalCount = useMemo(() => filteredData.reduce((sum, r) => sum + r.count, 0), [filteredData]);
   const totalPrice = useMemo(() => filteredData.reduce((sum, r) => sum + r.totalPrice, 0), [filteredData]);
 
-  const handleView = () => {
-    setReportData(sampleItems);
+  const handleView = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (fromDate) params.set("fromDate", fromDate);
+      if (fromTime) params.set("fromTime", fromTime);
+      if (toDate) params.set("toDate", toDate);
+      if (toTime) params.set("toTime", toTime);
+      if (allFilter && allFilter !== "All") params.set("orderType", allFilter);
+      if (selectedProduct) params.set("product", selectedProduct);
+      if (selectAttender) params.set("attender", selectAttender);
+      if (selectUser) params.set("user", selectUser);
+      const res = await fetch(`/api/reports/items-wise-sales?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.items)) {
+        setReportData(data.items as ItemSalesRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -241,7 +245,7 @@ export default function ItemsWiseSalesPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -278,7 +282,7 @@ export default function ItemsWiseSalesPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[900px]">
             <thead>
               <tr className="bg-[#3d3d3d] text-white">
                 <th className="px-4 py-3 text-center text-xs font-semibold">S.NO</th>

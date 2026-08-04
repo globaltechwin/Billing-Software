@@ -110,9 +110,9 @@ export default function AllReportsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex min-h-[500px]">
+        <div className="flex flex-col xl:flex-row min-h-[500px]">
           {/* Left sidebar - Categories */}
-          <div className="w-[240px] border-r border-gray-200 flex-shrink-0">
+          <div className="w-full xl:w-[240px] border-r border-gray-200 flex-shrink-0">
             <div className="py-2">
               {categories.map((cat) => {
                 const CatIcon = cat.icon;

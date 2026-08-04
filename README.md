@@ -1,3 +1,5 @@
+ipconfig getifaddr en0
+
 # Billora Backend Documentation
 
 ## Project Overview

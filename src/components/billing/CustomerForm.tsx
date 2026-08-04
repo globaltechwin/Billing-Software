@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronUp } from "lucide-react";
+import { ChevronUp, Search } from "lucide-react";
 
 export interface CustomerData {
+  id: number;
   mobile: string;
   name: string;
   address: string;
   landmark: string;
   additionalMobile: string;
   attender: string;
+  stateCode?: string;
 }
 
 interface CustomerFormProps {
@@ -18,6 +20,16 @@ interface CustomerFormProps {
 }
 
 const ATTENDERS = ["Ramesh", "Suresh", "Prakash", "Mahesh"];
+
+interface ApiCustomer {
+  id: number;
+  customerName: string;
+  phone: string;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  stateCode?: string;
+}
 
 export default function CustomerForm({
   onCustomerSelect,
@@ -29,21 +41,85 @@ export default function CustomerForm({
   const [landmark, setLandmark] = useState("");
   const [additionalMobile, setAdditionalMobile] = useState("");
   const [attender, setAttender] = useState("");
+  const [searchResults, setSearchResults] = useState<ApiCustomer[]>([]);
+  const [searching, setSearching] = useState(false);
   const mobileRef = useRef<HTMLInputElement>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     mobileRef.current?.focus();
   }, []);
 
-  function handleSubmit() {
+  function handleMobileChange(value: string) {
+    setMobile(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (value.length >= 3) {
+      setSearching(true);
+      searchTimeoutRef.current = setTimeout(() => {
+        fetch(`/api/customers?search=${encodeURIComponent(value)}&activeOnly=true`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success) setSearchResults(data.customers);
+          })
+          .catch(() => {})
+          .finally(() => setSearching(false));
+      }, 300);
+    } else {
+      setSearchResults([]);
+    }
+  }
+
+  function handleSelectExisting(customer: ApiCustomer) {
     onCustomerSelect({
-      mobile,
-      name,
-      address,
-      landmark,
-      additionalMobile,
-      attender,
+      id: customer.id,
+      mobile: customer.phone,
+      name: customer.customerName,
+      address: customer.address || "",
+      landmark: "",
+      additionalMobile: "",
+      attender: "",
+      stateCode: customer.stateCode,
     });
+  }
+
+  async function handleSubmit() {
+    if (!name && !mobile) return;
+
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: name || "Walk-in Customer",
+          phone: mobile || "0000000000",
+          address: address || null,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.customer) {
+        onCustomerSelect({
+          id: data.customer.id,
+          mobile: data.customer.phone,
+          name: data.customer.customerName,
+          address: data.customer.address || "",
+          landmark,
+          additionalMobile,
+          attender,
+          stateCode: data.customer.stateCode,
+        });
+      }
+    } catch {
+      onCustomerSelect({
+        id: 0,
+        mobile,
+        name: name || "Walk-in Customer",
+        address,
+        landmark,
+        additionalMobile,
+        attender,
+      });
+    }
   }
 
   return (
@@ -63,14 +139,34 @@ export default function CustomerForm({
 
       <div className="space-y-2.5">
         {/* Customer Mobile */}
-        <input
-          ref={mobileRef}
-          type="tel"
-          placeholder="Customer Mobile"
-          value={mobile}
-          onChange={(e) => setMobile(e.target.value)}
-          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-        />
+        <div className="relative">
+          <input
+            ref={mobileRef}
+            type="tel"
+            placeholder="Customer Mobile"
+            value={mobile}
+            onChange={(e) => handleMobileChange(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+          />
+          {searching && (
+            <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 animate-pulse" />
+          )}
+        </div>
+
+        {/* Search Results */}
+        {searchResults.length > 0 && (
+          <div className="border border-gray-200 rounded-lg max-h-32 overflow-y-auto">
+            {searchResults.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => handleSelectExisting(c)}
+                className="w-full text-left px-3 py-1.5 text-xs text-gray-700 hover:bg-purple-50 transition-colors"
+              >
+                {c.customerName} - {c.phone}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Customer Name */}
         <input

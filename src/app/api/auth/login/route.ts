@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  verifyPassword,
-  signToken,
-  setAuthCookie,
-} from "@/lib/auth";
+import { verifyPassword, signToken, setAuthCookie, shouldSecureCookie } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,11 +17,11 @@ export async function POST(request: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { username },
       include: {
-        role: {
+        role: true,
+        userCompanies: {
           include: {
-            rolePermissions: {
-              include: { permission: true },
-            },
+            company: true,
+            role: true,
           },
         },
       },
@@ -48,7 +44,6 @@ export async function POST(request: NextRequest) {
     }
 
     const isPasswordValid = await verifyPassword(password, user.password);
-
     if (!isPasswordValid) {
       await logLoginAttempt(user.id, false, request);
       return NextResponse.json(
@@ -59,22 +54,56 @@ export async function POST(request: NextRequest) {
 
     await logLoginAttempt(user.id, true, request);
 
+    // Determine active company
+    let activeCompanyId: number;
+
+    if (user.userCompanies.length === 1) {
+      activeCompanyId = user.userCompanies[0].companyId;
+    } else if (user.defaultCompanyId) {
+      const defaultUC = user.userCompanies.find(
+        (uc) => uc.companyId === user.defaultCompanyId
+      );
+      activeCompanyId = defaultUC ? defaultUC.companyId : user.userCompanies[0].companyId;
+    } else {
+      activeCompanyId = user.userCompanies[0].companyId;
+    }
+
+    const activeCompany = user.userCompanies.find(
+      (uc) => uc.companyId === activeCompanyId
+    );
+
+    // Get permissions for this user's role in the active company
+    const activeRoleId = activeCompany?.roleId || user.roleId;
+    const rolePermissions = await prisma.rolePermission.findMany({
+      where: { roleId: activeRoleId },
+      include: { permission: { select: { module: true } } },
+    });
+    const allowedModules = [...new Set(rolePermissions.map((rp) => rp.permission.module))];
+
+    // Fetch user menu access (blocked paths)
+    const menuAccess = await prisma.userMenuAccess.findMany({
+      where: { userId: user.id, companyId: activeCompanyId },
+      select: { menuPath: true, allowed: true },
+    });
+
+    // Compute allowed menu paths
+    let allowedMenuPaths: string[] | null = null;
+    if (menuAccess.length > 0) {
+      // User has custom access — compute allowed paths from menu-config
+      const { flattenMenuPaths } = await import("@/lib/menu-config");
+      const allPaths = flattenMenuPaths();
+      const blockedPaths = new Set(menuAccess.filter((m) => !m.allowed).map((m) => m.menuPath));
+      const explicitlyAllowed = new Set(menuAccess.filter((m) => m.allowed).map((m) => m.menuPath));
+      allowedMenuPaths = allPaths.filter((p) => explicitlyAllowed.has(p) || !blockedPaths.has(p));
+    }
+
     const token = await signToken({
       userId: user.id,
       username: user.username,
-      role: user.role.name,
+      companyId: activeCompanyId,
     });
 
-    await setAuthCookie(token);
-
-    const permissions = user.role.rolePermissions.map(
-      (rp) => ({
-        name: rp.permission.name,
-        module: rp.permission.module,
-      })
-    );
-
-    const allowedModules = [...new Set(permissions.map((p) => p.module))];
+    await setAuthCookie(token, shouldSecureCookie(request));
 
     return NextResponse.json({
       success: true,
@@ -83,10 +112,12 @@ export async function POST(request: NextRequest) {
         id: user.id,
         username: user.username,
         name: user.name,
-        role: user.role.name,
+        role: activeCompany?.role.name || user.role.name,
+        companyId: activeCompanyId,
+        companyName: activeCompany?.company.companyName || "",
       },
-      permissions,
       allowedModules,
+      allowedMenuPaths,
     });
   } catch (error) {
     console.error("Login error:", error);

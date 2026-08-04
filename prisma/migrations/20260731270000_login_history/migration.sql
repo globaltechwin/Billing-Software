@@ -1,0 +1,4 @@
+-- Login History report: the `LoginHistory` table (Prisma model, no @@map) already existed
+-- with the schema-matching structure (id, userId, loginAt, ipAddress, userAgent, success)
+-- and the login API already records attempts via prisma.loginHistory.create.
+-- No DDL changes required; this migration records the report enablement.

@@ -3,13 +3,6 @@
 import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 
-const templates = [
-  { id: "standard", name: "Standard", desc: "Clean modern layout with color header band", preview: "standard" },
-  { id: "classic", name: "Classic", desc: "Professional bordered layout — like tax invoices", preview: "classic" },
-  { id: "minimal", name: "Minimal", desc: "Clean typography, no background colors", preview: "minimal" },
-  { id: "split", name: "Split Header", desc: "Logo left · Company details right", preview: "split" },
-];
-
 const quickColors = ["#4b45d1","#e53e3e","#38a169","#d69e2e","#1a202c","#319795","#805ad5","#4fd1c5","#dd6b20","#e53e3e"];
 
 export default function QuoteTemplatePage() {
@@ -28,12 +21,10 @@ export default function QuoteTemplatePage() {
   const [authSignature, setAuthSignature] = useState(true);
   const [splitTax, setSplitTax] = useState(true);
 
-  const fmt = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-
   return (
-    <div className="flex h-[calc(100vh-64px)]">
+    <div className="flex flex-col xl:flex-row h-[calc(100vh-64px)]">
       {/* Left Panel - Settings (scrollable) */}
-      <div className="w-[480px] flex-shrink-0 overflow-y-auto p-6 border-r border-gray-200 bg-white">
+      <div className="w-full xl:w-[480px] flex-shrink-0 overflow-y-auto p-6 border-r border-gray-200 bg-white">
         <h1 className="text-xl font-bold text-gray-800 mb-6">Quote Template Settings</h1>
 
         {/* Branch Info */}

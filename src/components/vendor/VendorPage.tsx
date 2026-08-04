@@ -1,8 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ChevronUp, ChevronDown } from "lucide-react";
-import { sampleVendors, Vendor } from "./data";
+
+interface ApiVendor {
+  id: number;
+  vendorCode: string;
+  vendorName: string;
+  contactPerson: string | null;
+  mobileNumber: string;
+  alternateMobile: string | null;
+  email: string | null;
+  gstNumber: string | null;
+  panNumber: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  stateCode: string | null;
+  country: string;
+  postalCode: string | null;
+  paymentTerms: string | null;
+  creditLimit: string;
+  openingBalance: string;
+  currentBalance: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function VendorPage() {
   const [mobile, setMobile] = useState("");
@@ -16,22 +40,40 @@ export default function VendorPage() {
   const [isChessEnabled, setIsChessEnabled] = useState(false);
   const [showVendorInfo, setShowVendorInfo] = useState(true);
   const [showVendorList, setShowVendorList] = useState(true);
-  const [vendors, setVendors] = useState<Vendor[]>(sampleVendors);
+  const [vendors, setVendors] = useState<ApiVendor[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; name: string } | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchVendors = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/vendors");
+      const data = await res.json();
+      if (data.success) setVendors(data.vendors);
+    } catch {
+      console.error("Failed to fetch vendors");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchVendors();
+  }, [fetchVendors]);
 
   const filteredVendors = searchQuery
     ? vendors.filter(
         (v) =>
           v.vendorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          v.mobile.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          v.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          v.gstin.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          v.primaryContact.toLowerCase().includes(searchQuery.toLowerCase())
+          v.mobileNumber.includes(searchQuery) ||
+          (v.email && v.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (v.gstNumber && v.gstNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (v.contactPerson && v.contactPerson.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : vendors;
 
@@ -39,60 +81,48 @@ export default function VendorPage() {
   const startIndex = (currentPage - 1) * entriesPerPage;
   const paginatedVendors = filteredVendors.slice(startIndex, startIndex + entriesPerPage);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!mobile.trim() || !name.trim()) return;
 
-    const exists = vendors.some(
-      (v) =>
-        v.mobile === mobile.trim() &&
-        v.id !== editId
-    );
-    if (exists) {
+    const body: Record<string, unknown> = {
+      vendorName: name.trim(),
+      mobileNumber: mobile.trim(),
+      contactPerson: primaryContact.trim() || null,
+      gstNumber: gstin.trim() || null,
+      panNumber: pan.trim() || null,
+      email: email.trim() || null,
+      address: address.trim() || null,
+    };
+
+    try {
+      let res: Response;
+      if (editId) {
+        res = await fetch("/api/vendors", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editId, ...body }),
+        });
+      } else {
+        res = await fetch("/api/vendors", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to save vendor");
+        return;
+      }
+
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
-      return;
+      handleClear();
+      fetchVendors();
+    } catch {
+      alert("Failed to save vendor");
     }
-
-    if (editId) {
-      setVendors((prev) =>
-        prev.map((v) =>
-          v.id === editId
-            ? {
-                ...v,
-                mobile: mobile.trim(),
-                vendorName: name.trim(),
-                primaryContact: primaryContact.trim(),
-                gstin: gstin.trim(),
-                pan: pan.trim(),
-                email: email.trim(),
-                vendorType,
-                address: address.trim(),
-                isChessEnabled,
-              }
-            : v
-        )
-      );
-    } else {
-      const newVendorId = vendors.length > 0 ? Math.max(...vendors.map((v) => v.vendorId)) + 1 : 1;
-      const newVendor: Vendor = {
-        id: Date.now().toString(),
-        vendorId: newVendorId,
-        vendorName: name.trim(),
-        primaryContact: primaryContact.trim(),
-        mobile: mobile.trim(),
-        gstin: gstin.trim(),
-        pan: pan.trim(),
-        email: email.trim(),
-        vendorType,
-        address: address.trim(),
-        isChessEnabled,
-      };
-      setVendors((prev) => [...prev, newVendor]);
-    }
-
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
-    handleClear();
   };
 
   const handleClear = () => {
@@ -108,28 +138,38 @@ export default function VendorPage() {
     setEditId(null);
   };
 
-  const handleEdit = (vendor: Vendor) => {
-    setMobile(vendor.mobile);
+  const handleEdit = (vendor: ApiVendor) => {
+    setMobile(vendor.mobileNumber);
     setName(vendor.vendorName);
-    setPrimaryContact(vendor.primaryContact);
-    setGstin(vendor.gstin);
-    setPan(vendor.pan);
-    setEmail(vendor.email);
-    setVendorType(vendor.vendorType);
-    setAddress(vendor.address);
-    setIsChessEnabled(vendor.isChessEnabled);
+    setPrimaryContact(vendor.contactPerson || "");
+    setGstin(vendor.gstNumber || "");
+    setPan(vendor.panNumber || "");
+    setEmail(vendor.email || "");
+    setAddress(vendor.address || "");
     setEditId(vendor.id);
     setShowVendorInfo(true);
   };
 
-  const handleDeleteClick = (id: string, name: string) => {
+  const handleDeleteClick = (id: number, name: string) => {
     setDeleteConfirm({ id, name });
   };
 
-  const handleConfirmDelete = () => {
-    if (deleteConfirm) {
-      setVendors((prev) => prev.filter((v) => v.id !== deleteConfirm.id));
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm) return;
+    try {
+      const res = await fetch(`/api/vendors?id=${deleteConfirm.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to delete vendor");
+        setDeleteConfirm(null);
+        return;
+      }
       setDeleteConfirm(null);
+      fetchVendors();
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
+    } catch {
+      alert("Failed to delete vendor");
     }
   };
 
@@ -364,13 +404,13 @@ export default function VendorPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[1100px]">
                 <thead>
                   <tr className="bg-[#3d9a7e] text-white">
                     <th className="px-4 py-3 text-left text-xs font-semibold w-12">S.NO</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold w-20">EDIT</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold w-20">DELETE</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold">VENDOR ID</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold">VENDOR CODE</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold">VENDOR NAME</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold">PRIMARY CONTACT</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold">MOBILE</th>
@@ -381,7 +421,13 @@ export default function VendorPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedVendors.length === 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
+                        Loading vendors...
+                      </td>
+                    </tr>
+                  ) : paginatedVendors.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
                         No data available in table
@@ -411,14 +457,14 @@ export default function VendorPage() {
                             </svg>
                           </button>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.vendorId}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.vendorCode}</td>
                         <td className="px-4 py-3 text-sm text-gray-700 font-medium">{vendor.vendorName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.primaryContact}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.mobile}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.gstin}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.pan}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.email}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.address}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.contactPerson || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.mobileNumber}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.gstNumber || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.panNumber || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.email || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{vendor.address || "-"}</td>
                       </tr>
                     ))
                   )}

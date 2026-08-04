@@ -118,6 +118,70 @@ export default function MisReportPage() {
   const [endDate, setEndDate] = useState(defaultTo);
   const [generating, setGenerating] = useState<string | null>(null);
 
+  interface MisRow {
+    sNo: number;
+    particulars: string;
+    amount: number;
+  }
+
+  const fetchMisData = async (): Promise<{ rows: MisRow[]; itemWise: { sNo: number; category: string; product: string; quantity: number; amount: number }[] }> => {
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    const res = await fetch(`/api/reports/mis?${params.toString()}`);
+    const data = await res.json();
+    return { rows: data.rows ?? [], itemWise: data.itemWise ?? [] };
+  };
+
+  const handleDownloadExcel = async () => {
+    setGenerating("excel");
+    try {
+      const { rows } = await fetchMisData();
+      const headers = ["S.No", "Particulars", "Amount"];
+      const dataRows = rows.map((r) => [r.sNo, r.particulars, r.amount]);
+      const csv = generateCsv(headers, dataRows);
+      const dateLabel = `${formatDisplayDate(startDate)} to ${formatDisplayDate(endDate)}`;
+      downloadFile(csv, `MIS-Report-${dateLabel.replace(/\//g, "-")}.csv`, "text/csv");
+    } catch {
+      console.error("Failed to fetch MIS data");
+    }
+    setGenerating(null);
+  };
+
+  const handleItemWiseExcel = async () => {
+    setGenerating("itemWise");
+    try {
+      const { itemWise } = await fetchMisData();
+      const headers = ["S.No", "Category", "Product", "Quantity", "Amount"];
+      const dataRows = itemWise.map((r) => [r.sNo, r.category, r.product, r.quantity, r.amount]);
+      const csv = generateCsv(headers, dataRows);
+      const dateLabel = `${formatDisplayDate(startDate)} to ${formatDisplayDate(endDate)}`;
+      downloadFile(csv, `MIS-ItemWise-${dateLabel.replace(/\//g, "-")}.csv`, "text/csv");
+    } catch {
+      console.error("Failed to fetch MIS item-wise data");
+    }
+    setGenerating(null);
+  };
+
+  const handleDownloadPdf = async () => {
+    setGenerating("pdf");
+    try {
+      const { rows } = await fetchMisData();
+      const dateLabel = `${formatDisplayDate(startDate)} to ${formatDisplayDate(endDate)}`;
+      const lines = [
+        "MIS Report",
+        `Period: ${dateLabel}`,
+        "",
+        "S.No,Particulars,Amount",
+        ...rows.map((r) => `${r.sNo},${r.particulars},${r.amount}`),
+      ];
+      downloadFile(lines.join("\n"), `MIS-Report-${dateLabel.replace(/\//g, "-")}.txt`, "text/plain");
+    } catch {
+      console.error("Failed to fetch MIS data");
+    }
+    setGenerating(null);
+  };
+
   const handlePresetChange = (preset: string) => {
     setDatePreset(preset);
     if (preset !== "custom") {
@@ -127,75 +191,11 @@ export default function MisReportPage() {
     }
   };
 
-  const generateMisData = () => {
-    const headers = [
-      "S.No",
-      "Particulars",
-      "Amount",
-    ];
-    const rows: (string | number)[][] = [
-      [1, "Total Sales", 0],
-      [2, "Total Purchases", 0],
-      [3, "Total Expenses", 0],
-      [4, "Gross Profit", 0],
-      [5, "Net Profit", 0],
-      [6, "Total Bills", 0],
-      [7, "Total Customers", 0],
-      [8, "Stock Value", 0],
-    ];
-    return { headers, rows };
-  };
-
-  const handleDownloadExcel = async () => {
-    setGenerating("excel");
-    await new Promise((r) => setTimeout(r, 800));
-    const { headers, rows } = generateMisData();
-    const csv = generateCsv(headers, rows);
-    const dateLabel = `${formatDisplayDate(startDate)} to ${formatDisplayDate(endDate)}`;
-    downloadFile(csv, `MIS-Report-${dateLabel.replace(/\//g, "-")}.csv`, "text/csv");
-    setGenerating(null);
-  };
-
-  const handleItemWiseExcel = async () => {
-    setGenerating("itemWise");
-    await new Promise((r) => setTimeout(r, 800));
-    const headers = ["S.No", "Category", "Product", "Quantity", "Amount"];
-    const rows: (string | number)[][] = [
-      [1, "N/A", "N/A", 0, 0],
-    ];
-    const csv = generateCsv(headers, rows);
-    const dateLabel = `${formatDisplayDate(startDate)} to ${formatDisplayDate(endDate)}`;
-    downloadFile(csv, `MIS-ItemWise-${dateLabel.replace(/\//g, "-")}.csv`, "text/csv");
-    setGenerating(null);
-  };
-
-  const handleDownloadPdf = async () => {
-    setGenerating("pdf");
-    await new Promise((r) => setTimeout(r, 800));
-    const dateLabel = `${formatDisplayDate(startDate)} to ${formatDisplayDate(endDate)}`;
-    const content = [
-      "MIS Report",
-      `Period: ${dateLabel}`,
-      "",
-      "S.No,Particulars,Amount",
-      "1,Total Sales,0",
-      "2,Total Purchases,0",
-      "3,Total Expenses,0",
-      "4,Gross Profit,0",
-      "5,Net Profit,0",
-      "6,Total Bills,0",
-      "7,Total Customers,0",
-      "8,Stock Value,0",
-    ].join("\n");
-    downloadFile(content, `MIS-Report-${dateLabel.replace(/\//g, "-")}.txt`, "text/plain");
-    setGenerating(null);
-  };
-
   return (
     <div className="flex flex-col h-full p-4 gap-4">
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-[#f2f5f9] px-6 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="bg-[#f2f5f9] px-6 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-gray-800">MIS Report</h2>
           <div className="flex items-center gap-1">
             <button className="p-1 border border-gray-200 rounded text-gray-400 hover:text-gray-600">
@@ -252,7 +252,7 @@ export default function MisReportPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex flex-wrap items-center gap-3 ml-auto">
             <button
               onClick={handleDownloadExcel}
               disabled={generating !== null}

@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from "react";
 import { ChevronUp, Settings, X } from "lucide-react";
-import { sampleBranches } from "@/components/branch-master/data";
 
 interface PlanningRecord {
   id: string;
@@ -16,13 +15,14 @@ interface PlanningRecord {
   createdDate: string;
 }
 
-const samplePlanningRecords: PlanningRecord[] = [
-  { id: "1", sNo: 1, planNo: "PP-1001", category: "Morning Session", entryDate: "28/07/2026", requestDate: "28/07/2026", numberOfProducts: 3, remarks: "Morning batch production", createdDate: "28/07/2026" },
-  { id: "2", sNo: 2, planNo: "PP-1002", category: "Afternoon Session", entryDate: "27/07/2026", requestDate: "27/07/2026", numberOfProducts: 5, remarks: "Afternoon special items", createdDate: "27/07/2026" },
-  { id: "3", sNo: 3, planNo: "PP-1003", category: "Full Day", entryDate: "26/07/2026", requestDate: "26/07/2026", numberOfProducts: 2, remarks: "Weekend production plan", createdDate: "26/07/2026" },
-  { id: "4", sNo: 4, planNo: "PP-1004", category: "Morning Session", entryDate: "25/07/2026", requestDate: "25/07/2026", numberOfProducts: 4, remarks: "Regular morning batch", createdDate: "25/07/2026" },
-  { id: "5", sNo: 5, planNo: "PP-1005", category: "Evening Session", entryDate: "24/07/2026", requestDate: "24/07/2026", numberOfProducts: 6, remarks: "Evening snacks production", createdDate: "24/07/2026" },
-];
+function formatDate(d: Date): string {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+function toISODate(value: string): string {
+  const [dd, mm, yyyy] = value.split("/");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export default function PlanningListPage() {
   const today = new Date().toISOString().split("T")[0];
@@ -33,9 +33,10 @@ export default function PlanningListPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [showData, setShowData] = useState(false);
+  const [records, setRecords] = useState<PlanningRecord[]>([]);
 
   const filteredData = useMemo(() => {
-    let data = showData ? samplePlanningRecords : [];
+    let data = showData ? records : [];
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       data = data.filter(
@@ -46,15 +47,47 @@ export default function PlanningListPage() {
       );
     }
     return data;
-  }, [showData, searchQuery]);
+  }, [showData, searchQuery, records]);
 
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
   const paginatedData = filteredData.slice(startIndex, startIndex + entriesPerPage);
 
   const handleViewReport = () => {
-    setShowData(true);
-    setCurrentPage(1);
+    setShowData(false);
+    const params = new URLSearchParams();
+    if (startDate) params.set("fromDate", startDate);
+    if (endDate) params.set("toDate", endDate);
+    fetch(`/api/production-plans?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.success) return;
+        setRecords(
+          (d.plans as {
+            id: number;
+            planNo: string;
+            productionCategory: string;
+            entryDate: string;
+            requestDate: string;
+            numberOfProducts: number;
+            remarks: string;
+            createdAt: string;
+          }[]).map((p, idx) => ({
+            id: String(p.id),
+            sNo: idx + 1,
+            planNo: p.planNo,
+            category: p.productionCategory,
+            entryDate: toISODate(p.entryDate),
+            requestDate: toISODate(p.requestDate),
+            numberOfProducts: p.numberOfProducts,
+            remarks: p.remarks,
+            createdDate: formatDate(new Date(p.createdAt)),
+          }))
+        );
+        setCurrentPage(1);
+        setShowData(true);
+      })
+      .catch(() => {});
   };
 
   const handleClear = () => {
@@ -70,7 +103,7 @@ export default function PlanningListPage() {
     <div className="flex flex-col h-full p-4 gap-4">
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-base font-semibold text-gray-800">Production Planning List</h2>
           <div className="flex items-center gap-1">
             <button className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100">
@@ -133,7 +166,7 @@ export default function PlanningListPage() {
           </div>
         </div>
 
-        <div className="px-6 pb-5 flex items-center gap-3">
+        <div className="px-6 pb-5 flex flex-wrap items-center gap-3">
           <button
             onClick={handleViewReport}
             className="px-5 py-2 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a7e] transition-colors"
@@ -151,7 +184,7 @@ export default function PlanningListPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -269,7 +302,7 @@ export default function PlanningListPage() {
           </div>
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm text-gray-600">
             Showing {filteredData.length > 0 ? startIndex + 1 : 0} to{" "}
             {Math.min(startIndex + entriesPerPage, filteredData.length)} of{" "}

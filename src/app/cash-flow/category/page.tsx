@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { ChevronUp } from "lucide-react";
 
 interface CashCategory {
@@ -13,19 +13,15 @@ interface CashCategory {
   status: "Active" | "Inactive";
 }
 
-const initialCategories: CashCategory[] = [
-  { id: "1", sNo: 1, categoryId: "CAT-001", categoryName: "Sales Income", categoryType: "Cash In", displayOrder: 1, status: "Active" },
-  { id: "2", sNo: 2, categoryId: "CAT-002", categoryName: "Customer Payment", categoryType: "Cash In", displayOrder: 2, status: "Active" },
-  { id: "3", sNo: 3, categoryId: "CAT-003", categoryName: "Supplier Refund", categoryType: "Cash In", displayOrder: 3, status: "Active" },
-  { id: "4", sNo: 4, categoryId: "CAT-004", categoryName: "Purchase Expense", categoryType: "Cash Out", displayOrder: 4, status: "Active" },
-  { id: "5", sNo: 5, categoryId: "CAT-005", categoryName: "Salary", categoryType: "Cash Out", displayOrder: 5, status: "Active" },
-  { id: "6", sNo: 6, categoryId: "CAT-006", categoryName: "Rent", categoryType: "Cash Out", displayOrder: 6, status: "Active" },
-  { id: "7", sNo: 7, categoryId: "CAT-007", categoryName: "Utility Bills", categoryType: "Cash Out", displayOrder: 7, status: "Inactive" },
-  { id: "8", sNo: 8, categoryId: "CAT-008", categoryName: "Petty Cash", categoryType: "Cash Out", displayOrder: 8, status: "Active" },
-];
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
 
 export default function CashCategoryPage() {
-  const [categories, setCategories] = useState<CashCategory[]>(initialCategories);
+  const [categories, setCategories] = useState<CashCategory[]>([]);
   const [categoryName, setCategoryName] = useState("");
   const [categoryType, setCategoryType] = useState("");
   const [displayOrder, setDisplayOrder] = useState("");
@@ -37,24 +33,44 @@ export default function CashCategoryPage() {
   const [formCollapsed, setFormCollapsed] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
 
-  const filteredData = useMemo(() => {
-    let d = [...categories];
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      d = d.filter(r =>
-        r.categoryName.toLowerCase().includes(q) ||
-        r.categoryId.toLowerCase().includes(q) ||
-        r.categoryType.toLowerCase().includes(q)
-      );
-    }
-    return d;
-  }, [categories, searchQuery]);
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 50, total: 0, totalPages: 0 });
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const totalPages = Math.ceil(filteredData.length / entriesPerPage);
-  const start = (currentPage - 1) * entriesPerPage;
-  const paginated = filteredData.slice(start, start + entriesPerPage);
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", "50");
+    fetch(`/api/cash-category?${params.toString()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          setCategories(json.categories);
+          setPagination(json.pagination);
+        }
+      })
+      .catch(e => console.error("Failed to fetch categories:", e));
+  }, []);
 
-  const handleSave = () => {
+  const fetchCategories = (page: number) => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(entriesPerPage));
+    if (searchQuery) params.set("search", searchQuery);
+    fetch(`/api/cash-category?${params.toString()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          setCategories(json.categories);
+          setPagination(json.pagination);
+        }
+      })
+      .catch(e => console.error("Failed to fetch categories:", e))
+      .finally(() => setLoading(false));
+  };
+
+  const handleSave = async () => {
     if (!categoryName.trim()) {
       alert("Category Name is required.");
       return;
@@ -63,26 +79,40 @@ export default function CashCategoryPage() {
       alert("Category Type is required.");
       return;
     }
-    if (editId) {
-      setCategories(prev => prev.map(c =>
-        c.id === editId
-          ? { ...c, categoryName: categoryName.trim(), categoryType: categoryType as "Cash In" | "Cash Out", displayOrder: Number(displayOrder) || 0 }
-          : c
-      ));
-    } else {
-      const newId = String(categories.length + 1);
-      const newCatId = `CAT-${String(categories.length + 1).padStart(3, "0")}`;
-      setCategories(prev => [...prev, {
-        id: newId,
-        sNo: prev.length + 1,
-        categoryId: newCatId,
+
+    setSaving(true);
+    try {
+      const payload = {
         categoryName: categoryName.trim(),
-        categoryType: categoryType as "Cash In" | "Cash Out",
+        categoryType,
         displayOrder: Number(displayOrder) || 0,
-        status: "Active",
-      }]);
+      };
+
+      if (editId) {
+        await fetch("/api/cash-category", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editId, ...payload }),
+        });
+      } else {
+        await fetch("/api/cash-category", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      setCategoryName("");
+      setCategoryType("");
+      setDisplayOrder("");
+      setEditId(null);
+      fetchCategories(1);
+    } catch (e) {
+      console.error("Failed to save category:", e);
+      alert("Failed to save category.");
+    } finally {
+      setSaving(false);
     }
-    handleClear();
   };
 
   const handleClear = () => {
@@ -101,11 +131,24 @@ export default function CashCategoryPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this category?")) {
-      setCategories(prev => prev.filter(c => c.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this category?")) return;
+    try {
+      const res = await fetch(`/api/cash-category?id=${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        fetchCategories(currentPage);
+      } else {
+        alert(json.error || "Failed to delete category.");
+      }
+    } catch (e) {
+      console.error("Failed to delete category:", e);
+      alert("Failed to delete category.");
     }
   };
+
+  const totalPages = pagination.totalPages || 1;
+  const start = (pagination.page - 1) * pagination.limit;
 
   return (
     <div className="flex flex-col h-full p-4 gap-4">
@@ -121,15 +164,15 @@ export default function CashCategoryPage() {
           <div className="px-6 py-6">
             <div className="max-w-3xl">
               {/* Category Name */}
-              <div className="flex items-center gap-4 mb-5">
+              <div className="flex flex-wrap items-center gap-4 mb-5">
                 <label className="text-sm font-medium text-gray-700 w-[140px] text-right">Category Name*</label>
-                <input type="text" value={categoryName} onChange={e => setCategoryName(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-[420px]" />
+                <input type="text" value={categoryName} onChange={e => setCategoryName(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-[420px]" />
               </div>
 
               {/* Category Type */}
-              <div className="flex items-center gap-4 mb-5">
+              <div className="flex flex-wrap items-center gap-4 mb-5">
                 <label className="text-sm font-medium text-gray-700 w-[140px] text-right">Category Type*</label>
-                <select value={categoryType} onChange={e => setCategoryType(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-[280px]">
+                <select value={categoryType} onChange={e => setCategoryType(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-[280px]">
                   <option value="">--Select Type--</option>
                   <option value="Cash In">Cash In</option>
                   <option value="Cash Out">Cash Out</option>
@@ -137,14 +180,14 @@ export default function CashCategoryPage() {
               </div>
 
               {/* Display Order */}
-              <div className="flex items-center gap-4 mb-6">
+              <div className="flex flex-wrap items-center gap-4 mb-6">
                 <label className="text-sm font-medium text-gray-700 w-[140px] text-right">Display Order*</label>
                 <input type="number" value={displayOrder} onChange={e => setDisplayOrder(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-[140px]" />
               </div>
 
               {/* Buttons */}
-              <div className="flex items-center gap-3 ml-[140px]">
-                <button onClick={handleSave} className="px-6 py-2 bg-[#4caf85] text-white rounded-full text-sm font-medium hover:bg-[#3d9a7e]">Save</button>
+              <div className="flex flex-wrap items-center gap-3 md:ml-[140px]">
+                <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-[#4caf85] text-white rounded-full text-sm font-medium hover:bg-[#3d9a7e] disabled:opacity-50">{saving ? "Saving..." : "Save"}</button>
                 <button onClick={handleClear} className="px-6 py-2 bg-purple-500 text-white rounded-full text-sm font-medium hover:bg-purple-600">Clear</button>
               </div>
             </div>
@@ -162,7 +205,7 @@ export default function CashCategoryPage() {
         </div>
         {!listCollapsed && (
           <>
-            <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+            <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Show</span>
                 <select value={entriesPerPage} onChange={e => { setEntriesPerPage(Number(e.target.value)); setCurrentPage(1); }} className="px-2 py-1 border border-gray-300 rounded-md text-sm">
@@ -188,14 +231,18 @@ export default function CashCategoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.length === 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">Loading...</td>
+                    </tr>
+                  ) : categories.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">No data available in table</td>
                     </tr>
                   ) : (
-                    paginated.map((r) => (
+                    categories.map((r) => (
                       <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-3 py-3 text-sm text-center">{r.sNo}</td>
+                        <td className="px-3 py-3 text-sm text-center">{start + r.sNo}</td>
                         <td className="px-3 py-3 text-center">
                           <button onClick={() => handleEdit(r)} className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200">Edit</button>
                         </td>
@@ -217,11 +264,11 @@ export default function CashCategoryPage() {
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-              <span className="text-sm text-gray-600">Showing {filteredData.length > 0 ? start + 1 : 0} to {Math.min(start + entriesPerPage, filteredData.length)} of {filteredData.length} entries</span>
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-gray-600">Showing {categories.length > 0 ? start + 1 : 0} to {Math.min(start + entriesPerPage, pagination.total)} of {pagination.total} entries</span>
               <div className="flex items-center gap-1">
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">Previous</button>
-                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">Next</button>
+                <button onClick={() => { const np = Math.max(1, currentPage - 1); setCurrentPage(np); fetchCategories(np); }} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">Previous</button>
+                <button onClick={() => { const np = Math.min(totalPages, currentPage + 1); setCurrentPage(np); fetchCategories(np); }} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">Next</button>
               </div>
             </div>
           </>

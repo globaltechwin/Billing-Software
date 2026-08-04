@@ -14,13 +14,6 @@ export interface POItem {
   reqQty: number;
 }
 
-export interface Vendor {
-  id: string;
-  name: string;
-  mobile: string;
-  branch: string;
-}
-
 export const poProducts: POProduct[] = [
   { id: "1", name: "Rice (Basmati)", uom: "KG", vendor: "Fresh Foods Ltd", currentStock: 150, price: 85, taxRate: 5 },
   { id: "2", name: "Sugar (White)", uom: "KG", vendor: "Sweet Supply Co", currentStock: 200, price: 45, taxRate: 5 },
@@ -37,16 +30,6 @@ export const poProducts: POProduct[] = [
   { id: "13", name: "Paneer (Fresh)", uom: "Gm", vendor: "Dairy Direct", currentStock: 200, price: 90, taxRate: 5 },
   { id: "14", name: "Besan (Gram Flour)", uom: "KG", vendor: "Grain Traders", currentStock: 70, price: 50, taxRate: 5 },
   { id: "15", name: "Semolina (Sooji)", uom: "KG", vendor: "Grain Traders", currentStock: 55, price: 40, taxRate: 5 },
-];
-
-export const vendors: Vendor[] = [
-  { id: "1", name: "Fresh Foods Ltd", mobile: "9876543210", branch: "Main Branch" },
-  { id: "2", name: "Sweet Supply Co", mobile: "9876543211", branch: "Main Branch" },
-  { id: "3", name: "Grain Traders", mobile: "9876543212", branch: "Second Branch" },
-  { id: "4", name: "Oil Mart", mobile: "9876543213", branch: "Main Branch" },
-  { id: "5", name: "Spice World", mobile: "9876543214", branch: "Second Branch" },
-  { id: "6", name: "Veggie Farm", mobile: "9876543215", branch: "Main Branch" },
-  { id: "7", name: "Dairy Direct", mobile: "9876543216", branch: "Main Branch" },
 ];
 
 export const categories = [

@@ -18,79 +18,6 @@ interface EmployeeBillRow {
   createdDate: string;
 }
 
-const sampleData: EmployeeBillRow[] = [
-  {
-    id: "1",
-    billNo: "BILL-001",
-    grandTotal: 1250.00,
-    billDate: "28/07/2026",
-    session: "Morning",
-    employeeId: "EMP001",
-    employeeName: "Ravi Kumar",
-    mobile: "9876543210",
-    department: "Sales",
-    cardNumber: "CARD-1001",
-    createdBy: "admin",
-    createdDate: "28/07/2026 09:15:00",
-  },
-  {
-    id: "2",
-    billNo: "BILL-002",
-    grandTotal: 875.50,
-    billDate: "28/07/2026",
-    session: "Morning",
-    employeeId: "EMP002",
-    employeeName: "Suresh Patel",
-    mobile: "9876543211",
-    department: "Billing",
-    cardNumber: "CARD-1002",
-    createdBy: "admin",
-    createdDate: "28/07/2026 10:30:00",
-  },
-  {
-    id: "3",
-    billNo: "BILL-003",
-    grandTotal: 2100.00,
-    billDate: "28/07/2026",
-    session: "Afternoon",
-    employeeId: "EMP001",
-    employeeName: "Ravi Kumar",
-    mobile: "9876543210",
-    department: "Sales",
-    cardNumber: "CARD-1001",
-    createdBy: "admin",
-    createdDate: "28/07/2026 13:45:00",
-  },
-  {
-    id: "4",
-    billNo: "BILL-004",
-    grandTotal: 450.00,
-    billDate: "28/07/2026",
-    session: "Evening",
-    employeeId: "EMP003",
-    employeeName: "Anita Sharma",
-    mobile: "9876543212",
-    department: "Counter",
-    cardNumber: "CARD-1003",
-    createdBy: "admin",
-    createdDate: "28/07/2026 17:20:00",
-  },
-  {
-    id: "5",
-    billNo: "BILL-005",
-    grandTotal: 3200.00,
-    billDate: "28/07/2026",
-    session: "Evening",
-    employeeId: "EMP002",
-    employeeName: "Suresh Patel",
-    mobile: "9876543211",
-    department: "Billing",
-    cardNumber: "CARD-1002",
-    createdBy: "admin",
-    createdDate: "28/07/2026 18:00:00",
-  },
-];
-
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
 
@@ -115,14 +42,23 @@ export default function EmployeeBillReportPage() {
       )
     : reportData;
 
-  const handleViewReport = () => {
-    const filtered = sampleData.filter((row) => {
-      const rowDate = row.billDate.split("/").reverse().join("-");
-      const matchSession = session === "All" || row.session === session;
-      return matchSession;
-    });
-    setReportData(filtered);
+  const handleViewReport = async () => {
     setHasSearched(true);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (session && session !== "All") params.set("session", session);
+      const res = await fetch(`/api/reports/employee-bill?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.bills)) {
+        setReportData(data.bills as EmployeeBillRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -154,7 +90,7 @@ export default function EmployeeBillReportPage() {
     <div className="flex flex-col h-full p-4 gap-4">
       {/* Filter Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-[#f2f5f9] px-6 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="bg-[#f2f5f9] px-6 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <h2 className="text-base font-semibold text-gray-800">Employee Bill Report</h2>
           <div className="flex items-center gap-2">
             <button
@@ -210,7 +146,7 @@ export default function EmployeeBillReportPage() {
                 </select>
               </div>
             </div>
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={handleViewReport}
                 className="px-6 py-2 bg-emerald-500 text-white rounded-md text-sm font-medium hover:bg-emerald-600 transition-colors"
@@ -230,7 +166,7 @@ export default function EmployeeBillReportPage() {
 
       {/* Report Card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 flex items-center justify-between border-b border-gray-200">
+        <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <button
             onClick={handleDownloadExcel}
             disabled={filteredData.length === 0}

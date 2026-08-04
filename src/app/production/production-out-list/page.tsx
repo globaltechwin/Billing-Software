@@ -1,13 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ChevronUp, Settings, X } from "lucide-react";
-import { sampleBranches } from "@/components/branch-master/data";
+
+interface Branch {
+  id: number;
+  branchName: string;
+}
 
 interface ProductionOutRecord {
   id: string;
   sNo: number;
-  prodNo: string;
+  outNo: string;
   catName: string;
   productionDate: string;
   numberOfProducts: number;
@@ -17,13 +21,14 @@ interface ProductionOutRecord {
   createdDate: string;
 }
 
-const sampleProductionOutRecords: ProductionOutRecord[] = [
-  { id: "1", sNo: 1, prodNo: "PO-1001", catName: "Morning Session", productionDate: "28/07/2026", numberOfProducts: 3, grandTotal: 3200.00, branch: "Demo2", remarks: "Morning raw materials", createdDate: "28/07/2026" },
-  { id: "2", sNo: 2, prodNo: "PO-1002", catName: "Afternoon Session", productionDate: "27/07/2026", numberOfProducts: 5, grandTotal: 6800.00, branch: "Demo2", remarks: "Afternoon ingredients", createdDate: "27/07/2026" },
-  { id: "3", sNo: 3, prodNo: "PO-1003", catName: "Full Day", productionDate: "26/07/2026", numberOfProducts: 2, grandTotal: 2100.00, branch: "Demo2", remarks: "Weekend stock out", createdDate: "26/07/2026" },
-  { id: "4", sNo: 4, prodNo: "PO-1004", catName: "Morning Session", productionDate: "25/07/2026", numberOfProducts: 4, grandTotal: 5400.00, branch: "Demo2", remarks: "Regular materials", createdDate: "25/07/2026" },
-  { id: "5", sNo: 5, prodNo: "PO-1005", catName: "Evening Session", productionDate: "24/07/2026", numberOfProducts: 6, grandTotal: 7900.00, branch: "Demo2", remarks: "Evening supplies", createdDate: "24/07/2026" },
-];
+function formatDate(d: Date): string {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+function toISODate(value: string): string {
+  const [dd, mm, yyyy] = value.split("/");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export default function ProductionOutListPage() {
   const today = new Date().toISOString().split("T")[0];
@@ -35,25 +40,32 @@ export default function ProductionOutListPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [showData, setShowData] = useState(false);
+  const [records, setRecords] = useState<ProductionOutRecord[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+
+  useEffect(() => {
+    fetch("/api/branches")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) setBranches(d.branches);
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredData = useMemo(() => {
-    let data = showData ? sampleProductionOutRecords : [];
-    if (branch) {
-      const branchName = sampleBranches.find((b) => b.id === branch)?.branchName || "";
-      data = data.filter((r) => r.branch === branchName);
-    }
+    let data = showData ? records : [];
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       data = data.filter(
         (r) =>
-          r.prodNo.toLowerCase().includes(q) ||
+          r.outNo.toLowerCase().includes(q) ||
           r.catName.toLowerCase().includes(q) ||
           r.branch.toLowerCase().includes(q) ||
           r.remarks.toLowerCase().includes(q)
       );
     }
     return data;
-  }, [showData, branch, searchQuery]);
+  }, [showData, searchQuery]);
 
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
@@ -65,8 +77,43 @@ export default function ProductionOutListPage() {
   );
 
   const handleViewReport = () => {
-    setShowData(true);
-    setCurrentPage(1);
+    setShowData(false);
+    const params = new URLSearchParams();
+    if (startDate) params.set("fromDate", startDate);
+    if (endDate) params.set("toDate", endDate);
+    if (branch) params.set("branch", branch);
+    fetch(`/api/production-out?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.success) return;
+        setRecords(
+          (d.records as {
+            id: number;
+            outNo: string;
+            productionCategory: string;
+            branch: string;
+            productionDate: string;
+            numberOfProducts: number;
+            grandTotal: number;
+            remarks: string;
+            createdAt: string;
+          }[]).map((r, idx) => ({
+            id: String(r.id),
+            sNo: idx + 1,
+            outNo: r.outNo,
+            catName: r.productionCategory,
+            branch: r.branch,
+            productionDate: toISODate(r.productionDate),
+            numberOfProducts: r.numberOfProducts,
+            grandTotal: r.grandTotal,
+            remarks: r.remarks,
+            createdDate: formatDate(new Date(r.createdAt)),
+          }))
+        );
+        setCurrentPage(1);
+        setShowData(true);
+      })
+      .catch(() => {});
   };
 
   const handleClear = () => {
@@ -86,7 +133,7 @@ export default function ProductionOutListPage() {
     <div className="flex flex-col h-full p-4 gap-4">
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-base font-semibold text-gray-800">Production Out List</h2>
           <div className="flex items-center gap-1">
             <button className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100">
@@ -150,20 +197,23 @@ export default function ProductionOutListPage() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-gray-700">Branch</label>
-            <select
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-[180px]"
-            >
-              <option value="">--Select Branch--</option>
-              {sampleBranches.map((b) => (
-                <option key={b.id} value={b.id}>{b.branchName}</option>
-              ))}
-            </select>
+              <select
+                value={branch}
+                onChange={(e) => {
+                  setBranch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-[180px]"
+              >
+                <option value="">--Select Branch--</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.branchName}</option>
+                ))}
+              </select>
           </div>
         </div>
 
-        <div className="px-6 pb-5 flex items-center gap-3">
+        <div className="px-6 pb-5 flex flex-wrap items-center gap-3">
           <button
             onClick={handleViewReport}
             className="px-5 py-2 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a7e] transition-colors"
@@ -181,7 +231,7 @@ export default function ProductionOutListPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -269,7 +319,7 @@ export default function ProductionOutListPage() {
                 paginatedData.map((row) => (
                   <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="px-3 py-3 text-sm text-gray-700 text-center">{row.sNo}</td>
-                    <td className="px-3 py-3 text-sm text-gray-700 text-center font-medium">{row.prodNo}</td>
+                    <td className="px-3 py-3 text-sm text-gray-700 text-center font-medium">{row.outNo}</td>
                     <td className="px-3 py-3 text-sm text-gray-700 text-center">{row.catName}</td>
                     <td className="px-3 py-3 text-sm text-gray-700 text-center">{row.productionDate}</td>
                     <td className="px-3 py-3 text-sm text-gray-700 text-center">{row.numberOfProducts}</td>
@@ -297,7 +347,7 @@ export default function ProductionOutListPage() {
           </div>
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm text-gray-600">
             Showing {filteredData.length > 0 ? startIndex + 1 : 0} to{" "}
             {Math.min(startIndex + entriesPerPage, filteredData.length)} of{" "}

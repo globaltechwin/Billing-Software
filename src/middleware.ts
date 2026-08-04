@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/", "/login", "/api/auth/login"];
+const PUBLIC_PATHS = ["/", "/login"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/api/auth/")) {
+  if (
+    PUBLIC_PATHS.includes(pathname) ||
+    pathname.startsWith("/api/auth/")
+  ) {
     return NextResponse.next();
   }
 
@@ -28,7 +31,8 @@ export async function middleware(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-user-id", String(payload.userId));
-  requestHeaders.set("x-user-role", payload.role);
+  requestHeaders.set("x-user-role", payload.username);
+  requestHeaders.set("x-company-id", String(payload.companyId));
 
   return NextResponse.next({
     request: { headers: requestHeaders },

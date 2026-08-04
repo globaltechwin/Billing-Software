@@ -15,15 +15,6 @@ interface BillCouponRow {
   couponStatus: string;
 }
 
-const sampleData: BillCouponRow[] = [
-  { id: "1", sNo: 1, billNo: "1001", billDate: "28/07/2026", grandTotal: 1250.00, billCoupon: "WELCOME10", custName: "Ravi Kumar", custMobile: "9876543210", couponStatus: "Applied" },
-  { id: "2", sNo: 2, billNo: "1005", billDate: "27/07/2026", grandTotal: 850.00, billCoupon: "SAVE20", custName: "Suresh Patel", custMobile: "9876543211", couponStatus: "Applied" },
-  { id: "3", sNo: 3, billNo: "1012", billDate: "27/07/2026", grandTotal: 2100.00, billCoupon: "LOYALTY50", custName: "Anita Sharma", custMobile: "9876543212", couponStatus: "Redeemed" },
-  { id: "4", sNo: 4, billNo: "1018", billDate: "26/07/2026", grandTotal: 450.00, billCoupon: "FESTIVE15", custName: "Mohan Das", custMobile: "9876543213", couponStatus: "Applied" },
-  { id: "5", sNo: 5, billNo: "1023", billDate: "26/07/2026", grandTotal: 3200.00, billCoupon: "BIRTHDAY100", custName: "Priya Verma", custMobile: "9876543214", couponStatus: "Expired" },
-  { id: "6", sNo: 6, billNo: "1030", billDate: "25/07/2026", grandTotal: 675.00, billCoupon: "COMBO25", custName: "Raj Singh", custMobile: "9876543215", couponStatus: "Applied" },
-];
-
 export default function BillCouponReportPage() {
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
@@ -53,9 +44,22 @@ export default function BillCouponReportPage() {
   const startIndex = (currentPage - 1) * entriesPerPage;
   const paginatedData = filteredData.slice(startIndex, startIndex + entriesPerPage);
 
-  const handleViewReport = () => {
-    setReportData(sampleData);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/reports/bill-coupon?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as BillCouponRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -110,7 +114,7 @@ export default function BillCouponReportPage() {
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors">
             View Report
           </button>
@@ -122,7 +126,7 @@ export default function BillCouponReportPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select

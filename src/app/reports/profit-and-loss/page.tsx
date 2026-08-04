@@ -11,13 +11,6 @@ interface ProfitLossRow {
   type: "income" | "expense";
 }
 
-const sampleData: ProfitLossRow[] = [
-  { id: "1", sNo: 1, particulars: "Total Sales", amount: 0, type: "income" },
-  { id: "2", sNo: 2, particulars: "Total Expenses", amount: 0, type: "expense" },
-  { id: "3", sNo: 3, particulars: "Stock IN", amount: 0, type: "income" },
-  { id: "4", sNo: 4, particulars: "Stock Out", amount: 0, type: "expense" },
-];
-
 export default function ProfitAndLossPage() {
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
@@ -32,11 +25,27 @@ export default function ProfitAndLossPage() {
   }, [reportData, searchQuery]);
 
   const totalAmount = useMemo(() => {
-    return reportData.reduce((sum, r) => sum + r.amount, 0);
+    return reportData.reduce(
+      (sum, r) => sum + (r.type === "income" ? r.amount : -r.amount),
+      0
+    );
   }, [reportData]);
 
-  const handleView = () => {
-    setReportData(sampleData);
+  const handleView = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/reports/profit-and-loss?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as ProfitLossRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -62,7 +71,7 @@ export default function ProfitAndLossPage() {
     <div className="flex flex-col h-full p-4 gap-4">
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-[#f2f5f9] px-6 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="bg-[#f2f5f9] px-6 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-semibold text-gray-800">Profit and Loss</h2>
           <button className="text-gray-500 hover:text-gray-700">
             <X className="w-4 h-4" />
@@ -112,7 +121,7 @@ export default function ProfitAndLossPage() {
         </div>
 
         {/* Action Row */}
-        <div className="px-6 pb-4 flex items-center gap-2">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-2">
           <button
             onClick={handlePrintPDF}
             className="bg-gray-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-600 transition"

@@ -18,15 +18,6 @@ interface CancelledKotRow {
   cancelledDate: string;
 }
 
-const sampleData: CancelledKotRow[] = [
-  { id: "1", sNo: 1, billNo: "1001", kotNo: "K001", billDate: "28/07/2026", category: "Beverages", productName: "Cafe Latte", quantity: 2, billAmount: 130.00, remarks: "Customer cancelled", cancelledBy: "admin", cancelledDate: "28/07/2026" },
-  { id: "2", sNo: 2, billNo: "1001", kotNo: "K002", billDate: "28/07/2026", category: "Snacks", productName: "Veg Samosa", quantity: 4, billAmount: 160.00, remarks: "Item out of stock", cancelledBy: "admin", cancelledDate: "28/07/2026" },
-  { id: "3", sNo: 3, billNo: "1005", kotNo: "K003", billDate: "27/07/2026", category: "Main Course", productName: "Paneer Butter Masala", quantity: 1, billAmount: 180.00, remarks: "Wrong order", cancelledBy: "manager1", cancelledDate: "27/07/2026" },
-  { id: "4", sNo: 4, billNo: "1008", kotNo: "K004", billDate: "27/07/2026", category: "Beverages", productName: "Cold Coffee", quantity: 3, billAmount: 225.00, remarks: "Duplicate KOT", cancelledBy: "admin", cancelledDate: "27/07/2026" },
-  { id: "5", sNo: 5, billNo: "1012", kotNo: "K005", billDate: "26/07/2026", category: "Desserts", productName: "Chocolate Brownie", quantity: 2, billAmount: 150.00, remarks: "Customer changed mind", cancelledBy: "admin", cancelledDate: "26/07/2026" },
-  { id: "6", sNo: 6, billNo: "1015", kotNo: "K006", billDate: "26/07/2026", category: "Main Course", productName: "Chicken Biryani", quantity: 1, billAmount: 175.00, remarks: "Kitchen issue", cancelledBy: "manager1", cancelledDate: "26/07/2026" },
-];
-
 export default function CancelledKotReportPage() {
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
@@ -66,9 +57,22 @@ export default function CancelledKotReportPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    setReportData(sampleData);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/reports/cancelled-kot?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as CancelledKotRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -123,7 +127,7 @@ export default function CancelledKotReportPage() {
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors">
             View Report
           </button>
@@ -135,7 +139,7 @@ export default function CancelledKotReportPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -218,7 +222,7 @@ export default function CancelledKotReportPage() {
 
         {/* Total Row */}
         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-end gap-8 pr-4">
+          <div className="flex flex-wrap items-center justify-end gap-8 pr-4">
             <span className="text-sm font-semibold text-gray-700">Total:</span>
             <span className="text-sm font-semibold text-gray-800 min-w-[60px] text-center">{reportData.length > 0 ? totals.quantity : "0.00"}</span>
             <span className="text-sm font-semibold text-gray-800 min-w-[80px] text-center">{reportData.length > 0 ? totals.billAmount.toFixed(2) : "0.00"}</span>

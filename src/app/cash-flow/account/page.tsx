@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { ChevronUp, Pencil, Trash2 } from "lucide-react";
 
 interface CashAccount {
@@ -13,15 +13,17 @@ interface CashAccount {
   status: "Active" | "Inactive";
 }
 
-const initialAccounts: CashAccount[] = [
-  { id: "1", sNo: 1, accountId: "2", accountName: "BOC BANK", accountType: "Bank", openingBalance: 0, status: "Active" },
-  { id: "2", sNo: 2, accountId: "1", accountName: "Cash", accountType: "Cash", openingBalance: 1, status: "Active" },
-];
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
 
 const fmt = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function CashAccountPage() {
-  const [accounts, setAccounts] = useState<CashAccount[]>(initialAccounts);
+  const [accounts, setAccounts] = useState<CashAccount[]>([]);
   const [accountName, setAccountName] = useState("");
   const [accountType, setAccountType] = useState("");
   const [openingBalance, setOpeningBalance] = useState("");
@@ -33,24 +35,44 @@ export default function CashAccountPage() {
   const [formCollapsed, setFormCollapsed] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
 
-  const filteredData = useMemo(() => {
-    let d = [...accounts];
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      d = d.filter(r =>
-        r.accountName.toLowerCase().includes(q) ||
-        r.accountId.toLowerCase().includes(q) ||
-        r.accountType.toLowerCase().includes(q)
-      );
-    }
-    return d;
-  }, [accounts, searchQuery]);
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 50, total: 0, totalPages: 0 });
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const totalPages = Math.ceil(filteredData.length / entriesPerPage);
-  const start = (currentPage - 1) * entriesPerPage;
-  const paginated = filteredData.slice(start, start + entriesPerPage);
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", "50");
+    fetch(`/api/cash-account?${params.toString()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          setAccounts(json.accounts);
+          setPagination(json.pagination);
+        }
+      })
+      .catch(e => console.error("Failed to fetch accounts:", e));
+  }, []);
 
-  const handleSave = () => {
+  const fetchAccounts = (page: number) => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(entriesPerPage));
+    if (searchQuery) params.set("search", searchQuery);
+    fetch(`/api/cash-account?${params.toString()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          setAccounts(json.accounts);
+          setPagination(json.pagination);
+        }
+      })
+      .catch(e => console.error("Failed to fetch accounts:", e))
+      .finally(() => setLoading(false));
+  };
+
+  const handleSave = async () => {
     if (!accountName.trim()) {
       alert("Account Name is required.");
       return;
@@ -65,26 +87,39 @@ export default function CashAccountPage() {
       return;
     }
 
-    if (editId) {
-      setAccounts(prev => prev.map(a =>
-        a.id === editId
-          ? { ...a, accountName: accountName.trim(), accountType: accountType as "Cash" | "Bank", openingBalance: balance }
-          : a
-      ));
-    } else {
-      const newId = String(accounts.length + 1);
-      const newAccountId = String(accounts.length + 1);
-      setAccounts(prev => [...prev, {
-        id: newId,
-        sNo: prev.length + 1,
-        accountId: newAccountId,
+    setSaving(true);
+    try {
+      const payload = {
         accountName: accountName.trim(),
-        accountType: accountType as "Cash" | "Bank",
+        accountType,
         openingBalance: balance,
-        status: "Active",
-      }]);
+      };
+
+      if (editId) {
+        await fetch("/api/cash-account", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editId, ...payload }),
+        });
+      } else {
+        await fetch("/api/cash-account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      setAccountName("");
+      setAccountType("");
+      setOpeningBalance("");
+      setEditId(null);
+      fetchAccounts(1);
+    } catch (e) {
+      console.error("Failed to save account:", e);
+      alert("Failed to save account.");
+    } finally {
+      setSaving(false);
     }
-    handleClear();
   };
 
   const handleClear = () => {
@@ -103,11 +138,24 @@ export default function CashAccountPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this account?")) {
-      setAccounts(prev => prev.filter(a => a.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this account?")) return;
+    try {
+      const res = await fetch(`/api/cash-account?id=${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        fetchAccounts(currentPage);
+      } else {
+        alert(json.error || "Failed to delete account.");
+      }
+    } catch (e) {
+      console.error("Failed to delete account:", e);
+      alert("Failed to delete account.");
     }
   };
+
+  const totalPages = pagination.totalPages || 1;
+  const start = (pagination.page - 1) * pagination.limit;
 
   return (
     <div className="flex flex-col h-full p-4 gap-4">
@@ -123,15 +171,15 @@ export default function CashAccountPage() {
           <div className="px-6 py-6">
             <div className="max-w-3xl">
               {/* Account Name */}
-              <div className="flex items-center gap-4 mb-5">
+              <div className="flex flex-wrap items-center gap-4 mb-5">
                 <label className="text-sm font-medium text-gray-700 w-[140px] text-right">Account Name*</label>
-                <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-[420px]" />
+                <input type="text" value={accountName} onChange={e => setAccountName(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-[420px]" />
               </div>
 
               {/* Account Type */}
-              <div className="flex items-center gap-4 mb-5">
+              <div className="flex flex-wrap items-center gap-4 mb-5">
                 <label className="text-sm font-medium text-gray-700 w-[140px] text-right">Account Type*</label>
-                <select value={accountType} onChange={e => setAccountType(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-[280px]">
+                <select value={accountType} onChange={e => setAccountType(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full max-w-[280px]">
                   <option value="">--Select Type--</option>
                   <option value="Cash">Cash</option>
                   <option value="Bank">Bank</option>
@@ -139,14 +187,14 @@ export default function CashAccountPage() {
               </div>
 
               {/* Opening Balance */}
-              <div className="flex items-center gap-4 mb-6">
+              <div className="flex flex-wrap items-center gap-4 mb-6">
                 <label className="text-sm font-medium text-gray-700 w-[140px] text-right">Opening Balance</label>
                 <input type="number" value={openingBalance} onChange={e => setOpeningBalance(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-[160px]" />
               </div>
 
               {/* Buttons */}
-              <div className="flex items-center gap-3 ml-[140px]">
-                <button onClick={handleSave} className="px-6 py-2 bg-[#4caf85] text-white rounded-full text-sm font-medium hover:bg-[#3d9a7e]">Save</button>
+              <div className="flex flex-wrap items-center gap-3 md:ml-[140px]">
+                <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-[#4caf85] text-white rounded-full text-sm font-medium hover:bg-[#3d9a7e] disabled:opacity-50">{saving ? "Saving..." : "Save"}</button>
                 <button onClick={handleClear} className="px-6 py-2 bg-purple-500 text-white rounded-full text-sm font-medium hover:bg-purple-600">Clear</button>
               </div>
             </div>
@@ -164,7 +212,7 @@ export default function CashAccountPage() {
         </div>
         {!listCollapsed && (
           <>
-            <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+            <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">Show</span>
                 <select value={entriesPerPage} onChange={e => { setEntriesPerPage(Number(e.target.value)); setCurrentPage(1); }} className="px-2 py-1 border border-gray-300 rounded-md text-sm">
@@ -190,14 +238,18 @@ export default function CashAccountPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.length === 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">Loading...</td>
+                    </tr>
+                  ) : accounts.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">No data available in table</td>
                     </tr>
                   ) : (
-                    paginated.map((r) => (
+                    accounts.map((r) => (
                       <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-3 py-3 text-sm text-center">{r.sNo}</td>
+                        <td className="px-3 py-3 text-sm text-center">{start + r.sNo}</td>
                         <td className="px-3 py-3 text-center">
                           <button onClick={() => handleEdit(r)} className="p-1 text-blue-500 hover:text-blue-700 rounded hover:bg-blue-50"><Pencil size={15} /></button>
                         </td>
@@ -219,14 +271,14 @@ export default function CashAccountPage() {
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-              <span className="text-sm text-gray-600">Showing {filteredData.length > 0 ? start + 1 : 0} to {Math.min(start + entriesPerPage, filteredData.length)} of {filteredData.length} entries</span>
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-gray-600">Showing {accounts.length > 0 ? start + 1 : 0} to {Math.min(start + entriesPerPage, pagination.total)} of {pagination.total} entries</span>
               <div className="flex items-center gap-1">
-                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">Previous</button>
+                <button onClick={() => { const np = Math.max(1, currentPage - 1); setCurrentPage(np); fetchAccounts(np); }} disabled={currentPage === 1} className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">Previous</button>
                 {totalPages > 0 && Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                  <button key={p} onClick={() => setCurrentPage(p)} className={`px-3 py-1 border rounded text-sm ${currentPage === p ? "bg-[#3d9a7e] text-white border-[#3d9a7e]" : "border-gray-300 text-gray-600 hover:bg-gray-100"}`}>{p}</button>
+                  <button key={p} onClick={() => { setCurrentPage(p); fetchAccounts(p); }} className={`px-3 py-1 border rounded text-sm ${currentPage === p ? "bg-[#3d9a7e] text-white border-[#3d9a7e]" : "border-gray-300 text-gray-600 hover:bg-gray-100"}`}>{p}</button>
                 ))}
-                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">Next</button>
+                <button onClick={() => { const np = Math.min(totalPages, currentPage + 1); setCurrentPage(np); fetchAccounts(np); }} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">Next</button>
               </div>
             </div>
           </>

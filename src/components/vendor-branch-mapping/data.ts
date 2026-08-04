@@ -1,46 +1,26 @@
 export interface Vendor {
-  id: string;
-  name: string;
+  id: number;
+  vendorName: string;
+  vendorCode: string;
 }
 
 export interface Branch {
-  id: string;
-  name: string;
+  id: number;
+  branchName: string;
 }
 
 export interface VendorBranchMapping {
-  id: string;
-  vendorId: string;
+  id: number;
+  vendorId: number;
   vendorName: string;
-  branchId: string;
+  branchId: number;
   branchName: string;
+  status: string;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  remarks: string | null;
   isActive: boolean;
-  createdDate: string;
+  createdByUserId: number;
+  createdByName: string;
+  createdAt: string;
 }
-
-export const vendorList: Vendor[] = [
-  { id: "1", name: "Fresh Foods Ltd" },
-  { id: "2", name: "Spice World" },
-  { id: "3", name: "Rajesh kumar" },
-  { id: "4", name: "Grain Traders" },
-  { id: "5", name: "Oil Mart" },
-  { id: "6", name: "Dairy Direct" },
-];
-
-export const branchList: Branch[] = [
-  { id: "1", name: "Main Branch" },
-  { id: "2", name: "Demo2" },
-  { id: "3", name: "Second Branch" },
-];
-
-export const sampleMappings: VendorBranchMapping[] = [
-  {
-    id: "1",
-    vendorId: "3",
-    vendorName: "Rajesh kumar",
-    branchId: "2",
-    branchName: "Demo2",
-    isActive: true,
-    createdDate: "12/08/2024 17:37:24",
-  },
-];

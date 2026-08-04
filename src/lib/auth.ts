@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import type { NextRequest } from "next/server";
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 const TOKEN_NAME = "billora_token";
@@ -9,7 +10,7 @@ const TOKEN_EXPIRY = "24h";
 export interface JwtPayload {
   userId: number;
   username: string;
-  role: string;
+  companyId: number;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -40,22 +41,32 @@ export async function verifyToken(token: string): Promise<JwtPayload | null> {
   }
 }
 
-export async function setAuthCookie(token: string) {
+export async function setAuthCookie(token: string, secure: boolean) {
   const store = await cookies();
   store.set(TOKEN_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24, // 24 hours
+    maxAge: 60 * 60 * 24,
   });
+}
+
+// Only mark the cookie Secure when the request really arrived over HTTPS.
+// Over plain HTTP (e.g. a phone hitting http://<lan-ip>:3000, which is not a
+// secure context unlike desktop "localhost") a Secure cookie is silently
+// rejected by browsers, which breaks the session after login.
+export function shouldSecureCookie(request: NextRequest): boolean {
+  return (
+    request.nextUrl.protocol === "https:" ||
+    request.headers.get("x-forwarded-proto") === "https"
+  );
 }
 
 export async function removeAuthCookie() {
   const store = await cookies();
   store.set(TOKEN_NAME, "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: 0,

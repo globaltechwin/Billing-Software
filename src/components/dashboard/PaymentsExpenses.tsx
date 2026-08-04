@@ -3,64 +3,132 @@
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   ResponsiveContainer,
+  Tooltip,
 } from "recharts";
-import { ChevronUp, Settings, X } from "lucide-react";
+import ChartPanel from "./ChartPanel";
 
-const data: { label: string; value: number }[] = [];
+interface PaymentsExpensesProps {
+  data: { payments: number; expenses: number } | null;
+  loading: boolean;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onClose: () => void;
+  chartType: string;
+  onChartTypeChange: (type: string) => void;
+}
 
-export default function PaymentsExpenses() {
+const CHART_OPTIONS = [
+  { label: "Bar", value: "bar" },
+  { label: "Line", value: "line" },
+];
+
+export default function PaymentsExpenses({
+  data,
+  loading,
+  collapsed,
+  onToggleCollapse,
+  onClose,
+  chartType,
+  onChartTypeChange,
+}: PaymentsExpensesProps) {
+  const chartData = data
+    ? [
+        { label: "Payments", value: data.payments },
+        { label: "Expenses", value: data.expenses },
+      ]
+    : [];
+  const maxVal = data ? Math.max(data.payments, data.expenses, 1) : 1;
+  const yMax = Math.ceil(maxVal / 100) * 100 || 100;
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-        <h3 className="text-base font-bold text-gray-800">
-          Payments / Expenses
-        </h3>
-        <div className="flex items-center gap-1.5">
-          <button className="p-1.5 hover:bg-gray-100 rounded-md transition-colors">
-            <ChevronUp size={16} className="text-gray-400" />
-          </button>
-          <button className="p-1.5 hover:bg-gray-100 rounded-md transition-colors">
-            <Settings size={16} className="text-gray-400" />
-          </button>
-          <button className="p-1.5 hover:bg-gray-100 rounded-md transition-colors">
-            <X size={16} className="text-gray-400" />
-          </button>
-        </div>
+    <ChartPanel
+      title="Payments / Expenses"
+      collapsed={collapsed}
+      onToggleCollapse={onToggleCollapse}
+      onClose={onClose}
+      settingsOptions={CHART_OPTIONS}
+      activeSettings={chartType}
+      onSettingsChange={onChartTypeChange}
+    >
+      <div className="p-5 min-h-[280px]">
+        {loading ? (
+          <div className="flex items-center justify-center h-[250px] text-gray-400 text-sm">
+            Loading...
+          </div>
+        ) : !data || chartData.length === 0 ? (
+          <div className="flex items-center justify-center h-[250px] text-gray-400 text-sm">
+            No data available
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={250}>
+            {chartType === "line" ? (
+              <LineChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  axisLine={{ stroke: "#e5e7eb" }}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  axisLine={false}
+                  tickLine={false}
+                  domain={[0, yMax]}
+                />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    fontSize: "12px",
+                  }}
+                  formatter={(value) => [`₹${Number(value).toLocaleString("en-IN")}`, "Amount"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#a78bfa"
+                  strokeWidth={2}
+                  dot={{ r: 5, fill: "#a78bfa" }}
+                />
+              </LineChart>
+            ) : (
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  axisLine={{ stroke: "#e5e7eb" }}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  axisLine={false}
+                  tickLine={false}
+                  domain={[0, yMax]}
+                />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: "8px",
+                    border: "1px solid #e5e7eb",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    fontSize: "12px",
+                  }}
+                  formatter={(value) => [`₹${Number(value).toLocaleString("en-IN")}`, "Amount"]}
+                />
+                <Bar dataKey="value" fill="#a78bfa" barSize={60} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        )}
       </div>
-
-      {/* Chart */}
-      <div className="flex-1 p-5 min-h-[280px]">
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart
-            data={data}
-            margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="#f0f0f0"
-              vertical={false}
-            />
-            <XAxis
-              tick={{ fontSize: 11, fill: "#9ca3af" }}
-              axisLine={{ stroke: "#e5e7eb" }}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fontSize: 11, fill: "#9ca3af" }}
-              axisLine={false}
-              tickLine={false}
-              domain={[-1, 1]}
-              ticks={[-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1]}
-            />
-            <Bar dataKey="value" fill="#e5e7eb" barSize={40} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+    </ChartPanel>
   );
 }

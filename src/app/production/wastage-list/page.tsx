@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ChevronUp, Settings, X } from "lucide-react";
-import { sampleBranches } from "@/components/branch-master/data";
+
+interface Branch {
+  id: number;
+  branchName: string;
+}
 
 interface WastageRecord {
   id: string;
@@ -15,13 +19,14 @@ interface WastageRecord {
   createdDate: string;
 }
 
-const sampleWastageRecords: WastageRecord[] = [
-  { id: "1", sNo: 1, wastageNo: "WAS-1001", category: "Morning Session", entryDate: "28/07/2026", numberOfProducts: 2, remarks: "Spoiled raw materials", createdDate: "28/07/2026" },
-  { id: "2", sNo: 2, wastageNo: "WAS-1002", category: "Afternoon Session", entryDate: "27/07/2026", numberOfProducts: 3, remarks: "Expired ingredients", createdDate: "27/07/2026" },
-  { id: "3", sNo: 3, wastageNo: "WAS-1003", category: "Full Day", entryDate: "26/07/2026", numberOfProducts: 1, remarks: "Production overflow", createdDate: "26/07/2026" },
-  { id: "4", sNo: 4, wastageNo: "WAS-1004", category: "Morning Session", entryDate: "25/07/2026", numberOfProducts: 4, remarks: "Quality control reject", createdDate: "25/07/2026" },
-  { id: "5", sNo: 5, wastageNo: "WAS-1005", category: "Evening Session", entryDate: "24/07/2026", numberOfProducts: 2, remarks: "Storage damage", createdDate: "24/07/2026" },
-];
+function formatDate(d: Date): string {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+function toISODate(value: string): string {
+  const [dd, mm, yyyy] = value.split("/");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export default function WastageListPage() {
   const today = new Date().toISOString().split("T")[0];
@@ -33,9 +38,20 @@ export default function WastageListPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [showData, setShowData] = useState(false);
+  const [records, setRecords] = useState<WastageRecord[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+
+  useEffect(() => {
+    fetch("/api/branches")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success) setBranches(d.branches);
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredData = useMemo(() => {
-    let data = showData ? sampleWastageRecords : [];
+    let data = showData ? records : [];
     if (branch) {
       data = data.filter(() => true);
     }
@@ -56,8 +72,38 @@ export default function WastageListPage() {
   const paginatedData = filteredData.slice(startIndex, startIndex + entriesPerPage);
 
   const handleViewReport = () => {
-    setShowData(true);
-    setCurrentPage(1);
+    setShowData(false);
+    const params = new URLSearchParams();
+    if (startDate) params.set("fromDate", startDate);
+    if (endDate) params.set("toDate", endDate);
+    fetch(`/api/wastage?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.success) return;
+        setRecords(
+          (d.records as {
+            id: number;
+            wastageNo: string;
+            productionCategory: string;
+            entryDate: string;
+            numberOfProducts: number;
+            remarks: string;
+            createdAt: string;
+          }[]).map((r, idx) => ({
+            id: String(r.id),
+            sNo: idx + 1,
+            wastageNo: r.wastageNo,
+            category: r.productionCategory,
+            entryDate: toISODate(r.entryDate),
+            numberOfProducts: r.numberOfProducts,
+            remarks: r.remarks,
+            createdDate: formatDate(new Date(r.createdAt)),
+          }))
+        );
+        setCurrentPage(1);
+        setShowData(true);
+      })
+      .catch(() => {});
   };
 
   const handleClear = () => {
@@ -74,7 +120,7 @@ export default function WastageListPage() {
     <div className="flex flex-col h-full p-4 gap-4">
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-base font-semibold text-gray-800">Wastage List</h2>
           <div className="flex items-center gap-1">
             <button className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100">
@@ -135,23 +181,9 @@ export default function WastageListPage() {
               className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-[160px]"
             />
           </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Branch</label>
-            <select
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-[180px]"
-            >
-              <option value="">--Select Branch--</option>
-              {sampleBranches.map((b) => (
-                <option key={b.id} value={b.id}>{b.branchName}</option>
-              ))}
-            </select>
-          </div>
         </div>
 
-        <div className="px-6 pb-5 flex items-center gap-3">
+        <div className="px-6 pb-5 flex flex-wrap items-center gap-3">
           <button
             onClick={handleViewReport}
             className="px-5 py-2 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a7e] transition-colors"
@@ -169,7 +201,7 @@ export default function WastageListPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -275,7 +307,7 @@ export default function WastageListPage() {
           </div>
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm text-gray-600">
             Showing {filteredData.length > 0 ? startIndex + 1 : 0} to{" "}
             {Math.min(startIndex + entriesPerPage, filteredData.length)} of{" "}

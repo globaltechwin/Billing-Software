@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Zap, MessageCircle } from "lucide-react";
 
 interface MessageLog {
@@ -14,34 +14,13 @@ interface MessageLog {
   error: string;
 }
 
-const sampleMessageLog: MessageLog[] = [
-  { id: "1", billNo: "12", mobile: "+97466023030", customer: "Arun", status: "SENT", cost: 0.5000, sentAt: "22/07/2026 18:11", error: "" },
-  { id: "2", billNo: "4", mobile: "9940393333", customer: "raju", status: "SENT", cost: 0.5000, sentAt: "21/07/2026 17:10", error: "" },
-  { id: "3", billNo: "1", mobile: "09940393333", customer: "raju", status: "FAILED", cost: 0.0000, sentAt: "21/07/2026 16:37", error: "[131009] (#131009) Parameter value is not valid | The phone number is malformed: Please use the format: +1234567890." },
-  { id: "4", billNo: "", mobile: "+917010991925", customer: "Rajesh Priya", status: "SENT", cost: 0.5000, sentAt: "15/06/2026 11:33", error: "" },
-  { id: "5", billNo: "", mobile: "+919025165143", customer: "SINDU VC", status: "SENT", cost: 0.5000, sentAt: "26/05/2026 12:23", error: "" },
-  { id: "6", billNo: "", mobile: "9025165143", customer: "Sindu V C", status: "SENT", cost: 0.5000, sentAt: "26/05/2026 12:20", error: "" },
-  { id: "7", billNo: "", mobile: "7010991925", customer: "Rajesh Kumar", status: "SENT", cost: 0.5000, sentAt: "26/05/2026 07:41", error: "" },
-  { id: "8", billNo: "", mobile: "9677333175", customer: "Pradeep", status: "SENT", cost: 0.5000, sentAt: "25/05/2026 22:20", error: "" },
-  { id: "9", billNo: "", mobile: "9677333175", customer: "Pradeep", status: "FAILED", cost: 0.0000, sentAt: "25/05/2026 22:16", error: "[131008] (#131008) Required parameter is missing | Parameter of type text is missing text value" },
-  { id: "10", billNo: "4", mobile: "+97466023030", customer: "Arun", status: "SENT", cost: 0.5000, sentAt: "20/05/2026 21:12", error: "" },
-  { id: "11", billNo: "8", mobile: "9500122580", customer: "Sandhip Kumar", status: "SENT", cost: 0.5000, sentAt: "18/05/2026 14:05", error: "" },
-  { id: "12", billNo: "7", mobile: "+917010991925", customer: "Rajesh Kumar", status: "SENT", cost: 0.5000, sentAt: "18/05/2026 14:03", error: "" },
-  { id: "13", billNo: "6", mobile: "7010991925", customer: "Rajesh kumar", status: "SENT", cost: 0.5000, sentAt: "18/05/2026 14:00", error: "" },
-  { id: "14", billNo: "5", mobile: "7010991925", customer: "kma", status: "SENT", cost: 0.5000, sentAt: "18/05/2026 13:57", error: "" },
-  { id: "15", billNo: "2", mobile: "9677333175", customer: "Pradeep", status: "SENT", cost: 0.5000, sentAt: "18/05/2026 08:31", error: "" },
-  { id: "16", billNo: "2", mobile: "9677333175", customer: "Pradeep", status: "SENT", cost: 0.5000, sentAt: "18/05/2026 08:31", error: "" },
-  { id: "17", billNo: "1", mobile: "9677333175", customer: "Pradeep", status: "FAILED", cost: 0.0000, sentAt: "18/05/2026 07:58", error: "[132001] Template not found or not approved by Meta. Check: (1) template status is APPROVED in Templates page, (2) template language - 'en' must be saved as 'en_US'. Meta says: template name (bill_notification1) does not exist in en_US." },
-  { id: "18", billNo: "2", mobile: "7010991925", customer: "kma", status: "FAILED", cost: 0.0000, sentAt: "12/05/2026 10:11", error: "[190] Access token expired or invalid. Generate a new System User token in Meta Business Manager." },
-  { id: "19", billNo: "1", mobile: "7010991925", customer: "Rajesh kumar", status: "FAILED", cost: 0.0000, sentAt: "12/05/2026 10:10", error: "[190] Access token expired or invalid. Generate a new System User token in Meta Business Manager." },
-  { id: "20", billNo: "5", mobile: "7010991925", customer: "Rajesh", status: "FAILED", cost: 0.0000, sentAt: "09/05/2026 19:31", error: "[190] Access token expired or invalid. Generate a new System User token in Meta Business Manager." },
-  { id: "21", billNo: "11", mobile: "9677333175", customer: "Pradeep", status: "SENT", cost: 0.5000, sentAt: "03/05/2026 16:16", error: "" },
-  { id: "22", billNo: "10", mobile: "9677333175", customer: "Pradeep", status: "SENT", cost: 0.5000, sentAt: "03/05/2026 16:15", error: "" },
-  { id: "23", billNo: "9", mobile: "9677333175", customer: "Pradeep", status: "FAILED", cost: 0.0000, sentAt: "03/05/2026 15:51", error: "API 404: {\"error\":{\"message\":\"(#132001) Template name does not exist in the translation\",\"code\":132001,\"type\":\"OAuthException\",\"error_data\":{\"messaging_product\":\"whatsapp\",\"details\":\"template name (bill_notification1) does not exist in en\"},\"fbtrace_id\":\"AecfH59cO2QMFdIhGcRrOkO\"}}" },
-  { id: "24", billNo: "8", mobile: "9677333175", customer: "Pradeep", status: "FAILED", cost: 0.0000, sentAt: "03/05/2026 15:17", error: "API 404: {\"error\":{\"message\":\"(#132001) Template name does not exist in the translation\",\"code\":132001,\"type\":\"OAuthException\",\"error_data\":{\"messaging_product\":\"whatsapp\",\"details\":\"template name (bill_notification1) does not exist in en\"},\"fbtrace_id\":\"AJmhTBccsxnsLaZdIaLSt_R\"}}" },
-  { id: "25", billNo: "7", mobile: "9677333175", customer: "Pradeep", status: "FAILED", cost: 0.0000, sentAt: "03/05/2026 15:15", error: "API 400: {\"error\":{\"message\":\"(#131030) Recipient phone number not in allowed list\",\"code\":131030,\"type\":\"OAuthException\",\"error_data\":{\"messaging_product\":\"whatsapp\",\"details\":\"Recipient phone number not in allowed list: Add recipient phone number to recipient list and try again.\"},\"fbtrace_id\":\"AoqVN2paUXFdzO6OLGc7u5U\"}}" },
-  { id: "26", billNo: "6", mobile: "9677333175", customer: "Pradeep", status: "FAILED", cost: 0.0000, sentAt: "03/05/2026 15:10", error: "API 400: {\"error\":{\"message\":\"Unsupported post request. Object with ID '1509973570642451' does not exist, cannot be loaded due to missing permissions, or does not support this operation. Please read the Graph API documentation at https://developers.facebook.com/docs/graph-api\",\"type\":\"GraphMethodException\",\"code\":100,\"error_subcode\":33,\"fbtrace_id\":\"AlhKlgkgNzZnUZJ2c7a9mon\"}}" },
-];
+interface BalanceData {
+  currentBalance: number;
+  totalSpent: number;
+  totalRecharged: number;
+  costPerMessage: number;
+  messagesRemaining: number;
+}
 
 export default function BalanceAnalyticsPage() {
   const [activeTab, setActiveTab] = useState<"messageLog" | "recharges">("messageLog");
@@ -50,15 +29,38 @@ export default function BalanceAnalyticsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [quickAmount, setQuickAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState("");
+  const [balance, setBalance] = useState<BalanceData | null>(null);
+  const [messageLog, setMessageLog] = useState<MessageLog[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const currentBalance = 92.50;
-  const totalSpent = 7.50;
-  const totalRecharged = 100.00;
-  const costPerMessage = 0.50;
-  const messagesRemaining = Math.floor(currentBalance / costPerMessage);
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [balRes, msgRes] = await Promise.all([
+          fetch("/api/whatsapp/balance"),
+          fetch("/api/whatsapp/messages?limit=100"),
+        ]);
+        const balData = await balRes.json();
+        const msgData = await msgRes.json();
+        setBalance({
+          currentBalance: balData.currentBalance ?? 0,
+          totalSpent: balData.totalSpent ?? 0,
+          totalRecharged: balData.totalRecharged ?? 0,
+          costPerMessage: balData.costPerMessage ?? 0,
+          messagesRemaining: Math.floor((balData.currentBalance ?? 0) / (balData.costPerMessage ?? 1)),
+        });
+        setMessageLog(msgData.messages ?? []);
+      } catch (e) {
+        console.error("Failed to fetch WhatsApp data:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
 
   const filteredData = useMemo(() => {
-    let data = activeTab === "messageLog" ? sampleMessageLog : [];
+    let data = activeTab === "messageLog" ? messageLog : [];
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       data = data.filter(
@@ -71,7 +73,7 @@ export default function BalanceAnalyticsPage() {
       );
     }
     return data;
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, messageLog]);
 
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
@@ -88,15 +90,33 @@ export default function BalanceAnalyticsPage() {
     setCustomAmount(String(amount));
   };
 
-  const handleRecharge = () => {
+  const handleRecharge = async () => {
     const amt = parseFloat(customAmount);
     if (!amt || amt <= 0) {
       alert("Please enter a valid amount");
       return;
     }
-    alert(`Recharge of ₹ ${amt} initiated successfully!`);
-    setCustomAmount("");
-    setQuickAmount(null);
+    try {
+      const res = await fetch("/api/whatsapp/balance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: amt }),
+      });
+      if (res.ok) {
+        setCustomAmount("");
+        setQuickAmount(null);
+        const balData = await res.json();
+        setBalance({
+          currentBalance: balData.currentBalance ?? 0,
+          totalSpent: balData.totalSpent ?? 0,
+          totalRecharged: balData.totalRecharged ?? 0,
+          costPerMessage: balData.costPerMessage ?? 0,
+          messagesRemaining: Math.floor((balData.currentBalance ?? 0) / (balData.costPerMessage ?? 1)),
+        });
+      }
+    } catch (e) {
+      console.error("Recharge failed:", e);
+    }
   };
 
   return (
@@ -108,21 +128,21 @@ export default function BalanceAnalyticsPage() {
           {/* Current Balance */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Current Balance</p>
-            <p className="text-3xl font-bold text-gray-800">{formatCurrencyShort(currentBalance)}</p>
-            <p className="text-sm text-gray-500 mt-1">{messagesRemaining} messages remaining</p>
+            <p className="text-3xl font-bold text-gray-800">{balance ? formatCurrencyShort(balance.currentBalance) : "-"}</p>
+            <p className="text-sm text-gray-500 mt-1">{balance ? balance.messagesRemaining : 0} messages remaining</p>
           </div>
 
           {/* Total Spent */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Spent</p>
-            <p className="text-3xl font-bold text-gray-800">{formatCurrencyShort(totalSpent)}</p>
-            <p className="text-sm text-gray-500 mt-1">{formatCurrencyShort(costPerMessage)} / message</p>
+            <p className="text-3xl font-bold text-gray-800">{balance ? formatCurrencyShort(balance.totalSpent) : "-"}</p>
+            <p className="text-sm text-gray-500 mt-1">{balance ? formatCurrencyShort(balance.costPerMessage) : "-"} / message</p>
           </div>
 
           {/* Total Recharged */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Recharged</p>
-            <p className="text-3xl font-bold text-gray-800">{formatCurrencyShort(totalRecharged)}</p>
+            <p className="text-3xl font-bold text-gray-800">{balance ? formatCurrencyShort(balance.totalRecharged) : "-"}</p>
             <p className="text-sm text-gray-500 mt-1">lifetime</p>
           </div>
         </div>
@@ -214,7 +234,7 @@ export default function BalanceAnalyticsPage() {
         </div>
 
         {/* Table Controls */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -320,7 +340,7 @@ export default function BalanceAnalyticsPage() {
         )}
 
         {/* Pagination */}
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm text-gray-600">
             Showing {filteredData.length > 0 ? startIndex + 1 : 0} to{" "}
             {Math.min(startIndex + entriesPerPage, filteredData.length)} of{" "}

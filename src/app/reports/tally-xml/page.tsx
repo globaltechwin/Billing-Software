@@ -3,47 +3,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 
-function generateTallyXml(type: string, fromDate: string, toDate: string): string {
-  const transactions = [
-    { id: "1", date: fromDate, number: "BILL001", type: "Sales", amount: 15000 },
-    { id: "2", date: fromDate, number: "BILL002", type: "Sales", amount: 8500 },
-    { id: "3", date: toDate, number: "BILL003", type: "Sales", amount: 12000 },
-  ];
-
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-  xml += `<ENVELOPE>\n`;
-  xml += `  <HEADER>\n`;
-  xml += `    <TALLYREQUEST>Import Data</TALLYREQUEST>\n`;
-  xml += `  </HEADER>\n`;
-  xml += `  <BODY>\n`;
-  xml += `    <IMPORTDATA>\n`;
-  xml += `      <REQUESTDESC>\n`;
-  xml += `        <REPORTNAME>All Masters</REPORTNAME>\n`;
-  xml += `        <STATICVARIABLES>\n`;
-  xml += `          <SVCURRENTCOMPANY>Billora</SVCURRENTCOMPANY>\n`;
-  xml += `        </STATICVARIABLES>\n`;
-  xml += `      </REQUESTDESC>\n`;
-  xml += `      <REQUESTBODY>\n`;
-  xml += `        <TALLYMESSAGE>\n`;
-  xml += `          <!-- ${type} Data from ${fromDate} to ${toDate} -->\n`;
-
-  transactions.forEach((t) => {
-    xml += `          <VOUCHER VCHTYPE="${t.type}" ACTION="Create">\n`;
-    xml += `            <DATE>${t.date.split("/").reverse().join("")}</DATE>\n`;
-    xml += `            <VOUCHERNUMBER>${t.number}</VOUCHERNUMBER>\n`;
-    xml += `            <AMOUNT>${t.amount.toFixed(2)}</AMOUNT>\n`;
-    xml += `          </VOUCHER>\n`;
-  });
-
-  xml += `        </TALLYMESSAGE>\n`;
-  xml += `      </REQUESTBODY>\n`;
-  xml += `    </IMPORTDATA>\n`;
-  xml += `  </BODY>\n`;
-  xml += `</ENVELOPE>`;
-
-  return xml;
-}
-
 function downloadXml(content: string, filename: string) {
   const blob = new Blob([content], { type: "application/xml" });
   const url = URL.createObjectURL(blob);
@@ -64,13 +23,20 @@ export default function TallyXmlPage() {
 
   const handleDownload = async (type: string) => {
     setGenerating(type);
-
-    // Simulate generation delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const xml = generateTallyXml(type, startDate, endDate);
-    const filename = `billora-${type.toLowerCase().replace(/\s+/g, "-")}-${startDate.replace(/\//g, "-")}.xml`;
-    downloadXml(xml, filename);
+    try {
+      const params = new URLSearchParams();
+      const apiType = type === "Billing XML" ? "billing" : type === "Vendor XML" ? "vendor" : "purchase";
+      params.set("type", apiType);
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/reports/tally-xml?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && data.xml) {
+        downloadXml(data.xml, data.filename || `billora-${type}.xml`);
+      }
+    } catch {
+      // ignore download failures
+    }
     setGenerating(null);
   };
 
@@ -116,7 +82,7 @@ export default function TallyXmlPage() {
             />
           </div>
 
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex flex-wrap items-center gap-3 ml-auto">
             <button
               onClick={() => handleDownload("Billing XML")}
               disabled={generating !== null}

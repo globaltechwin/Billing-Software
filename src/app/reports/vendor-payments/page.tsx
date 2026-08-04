@@ -17,15 +17,6 @@ interface VendorPaymentRow {
   date: string;
 }
 
-const samplePayments: VendorPaymentRow[] = [
-  { id: "1", sNo: 1, vendorName: "Fresh Farms Suppliers", credit: 15000, cash: 5000, card: 3000, upi: 2000, wallet: 0, curBalance: 12000, balanceDesc: "Due", date: "28/07/2026" },
-  { id: "2", sNo: 2, vendorName: "Metro Dairy Products", credit: 8000, cash: 3000, card: 0, upi: 1500, wallet: 500, curBalance: 6000, balanceDesc: "Due", date: "28/07/2026" },
-  { id: "3", sNo: 3, vendorName: "National Beverages Ltd", credit: 22000, cash: 10000, card: 5000, upi: 3000, wallet: 0, curBalance: 8000, balanceDesc: "Partial", date: "27/07/2026" },
-  { id: "4", sNo: 4, vendorName: "Quality Meat Traders", credit: 12000, cash: 8000, card: 2000, upi: 1000, wallet: 0, curBalance: 5000, balanceDesc: "Due", date: "27/07/2026" },
-  { id: "5", sNo: 5, vendorName: "Spice Garden Imports", credit: 35000, cash: 15000, card: 10000, upi: 5000, wallet: 2000, curBalance: 10000, balanceDesc: "Partial", date: "26/07/2026" },
-  { id: "6", sNo: 6, vendorName: "Green Valley Organics", credit: 18000, cash: 12000, card: 3000, upi: 2000, wallet: 1000, curBalance: 0, balanceDesc: "Paid", date: "26/07/2026" },
-];
-
 export default function VendorPaymentsPage() {
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
@@ -67,9 +58,22 @@ export default function VendorPaymentsPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    setReportData(samplePayments);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/reports/vendor-payments?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as VendorPaymentRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -186,7 +190,7 @@ export default function VendorPaymentsPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -275,7 +279,7 @@ export default function VendorPaymentsPage() {
 
         {/* Total Row */}
         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-end gap-8 pr-4">
+          <div className="flex flex-wrap items-center justify-end gap-8 pr-4">
             <span className="text-sm font-semibold text-gray-700">Total:</span>
             <span className="text-sm font-semibold text-gray-800 min-w-[80px] text-center">{reportData.length > 0 ? totals.credit.toFixed(2) : "0.00"}</span>
             <span className="text-sm font-semibold text-gray-800 min-w-[80px] text-center">{reportData.length > 0 ? totals.cash.toFixed(2) : "0.00"}</span>

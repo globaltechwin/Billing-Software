@@ -1,0 +1,29 @@
+{
+  "cookies": [
+    {
+      "name": "billora_token",
+      "value": "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VySWQiOjIzLCJ1c2VybmFtZSI6InN1cGVyYWRtaW4iLCJjb21wYW55SWQiOjksImlhdCI6MTc4NTgxMjk4MSwiZXhwIjoxNzg1ODk5MzgxfQ.wtv1EQZ8JkRfLqk46mltSmk3zq5vcDzfkjjgmEFr5jQ",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1785899381.485318,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "billora_permissions",
+          "value": "[\"Dashboard\",\"Billing\",\"View Bill\",\"Inventory\",\"Master\",\"Reports\",\"Admin\",\"Production\",\"Sales\",\"WhatsApp\",\"Events\",\"Cash Flow\",\"Accounting\",\"GST Management\"]"
+        },
+        {
+          "name": "billora_user",
+          "value": "{\"id\":23,\"username\":\"superadmin\",\"name\":\"Super Admin\",\"role\":\"Owner\",\"companyId\":9,\"companyName\":\"Ocean view restaurant\"}"
+        }
+      ]
+    }
+  ]
+}

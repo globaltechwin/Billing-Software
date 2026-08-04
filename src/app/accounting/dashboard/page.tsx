@@ -1,43 +1,100 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Clock, Send, CheckCircle, DollarSign } from "lucide-react";
 
-const recentQuotes = [
-  { quoteNo: "QT-0005", customer: "1002-Omkar Tanti", amount: 666, status: "Sent" },
-  { quoteNo: "QT-0004", customer: "1001-Harikrishnan Arumugam", amount: 0, status: "Draft" },
-  { quoteNo: "QT-0003", customer: "1008-Jeewan Tanti", amount: 0, status: "Draft" },
-  { quoteNo: "QT-0002", customer: "1001-Harikrishnan Arumugam", amount: 0, status: "Draft" },
-  { quoteNo: "QT-0001", customer: "1010-Manikandan E", amount: 0, status: "Draft" },
-];
+interface RecentQuote {
+  quoteNo: string;
+  customer: string;
+  amount: number;
+  status: string;
+}
 
-const recentInvoices: { invoiceNo: string; customer: string; balance: number; status: string }[] = [];
+interface RecentInvoice {
+  invoiceNo: string;
+  customer: string;
+  balance: number;
+  status: string;
+}
 
-const fmt = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+interface DashboardData {
+  outstanding: number;
+  quotesPending: number;
+  acceptedQuotes: number;
+  collected: number;
+  recentQuotes: RecentQuote[];
+  recentInvoices: RecentInvoice[];
+}
 
-const summaryCards = [
-  { label: "Outstanding", value: 0, subtitle: "0 open invoices", icon: Clock, iconColor: "text-gray-500" },
-  { label: "Quotes Pending", value: 666, subtitle: "1 awaiting response", icon: Send, iconColor: "text-gray-500" },
-  { label: "Accepted Quotes", value: 0, subtitle: "ready to invoice", icon: CheckCircle, iconColor: "text-gray-500" },
-  { label: "Collected", value: 0, subtitle: "total payments received", icon: DollarSign, iconColor: "text-gray-500" },
-];
+const fmt = (v: number) =>
+  v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function AccDashboardPage() {
+  const [data, setData] = useState<DashboardData>({
+    outstanding: 0,
+    quotesPending: 0,
+    acceptedQuotes: 0,
+    collected: 0,
+    recentQuotes: [],
+    recentInvoices: [],
+  });
+
+  useEffect(() => {
+    fetch("/api/accounting/dashboard")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success) {
+          setData(json.data);
+        }
+      })
+      .catch((e) => console.error("Failed to fetch dashboard data:", e));
+  }, []);
+
   return (
     <div className="flex flex-col h-full p-4 gap-4">
       <h1 className="text-xl font-bold text-gray-800">Accounting Dashboard</h1>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {summaryCards.map(card => (
-          <div key={card.label} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center min-h-[220px]">
-            <div className="flex items-center gap-2 mb-8 w-full justify-start">
-              <card.icon size={18} className={card.iconColor} />
-              <span className="text-sm font-semibold text-gray-700">{card.label}</span>
-            </div>
-            <p className="text-3xl font-bold text-gray-800 mb-3">{fmt(card.value)}</p>
-            <p className="text-sm text-gray-500">{card.subtitle}</p>
+        {/* Outstanding */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center min-h-[220px]">
+          <div className="flex items-center gap-2 mb-8 w-full justify-start">
+            <Clock size={18} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">Outstanding</span>
           </div>
-        ))}
+          <p className="text-3xl font-bold text-gray-800 mb-3">{fmt(data.outstanding)}</p>
+          <p className="text-sm text-gray-500">open invoices</p>
+        </div>
+
+        {/* Quotes Pending */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center min-h-[220px]">
+          <div className="flex items-center gap-2 mb-8 w-full justify-start">
+            <Send size={18} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">Quotes Pending</span>
+          </div>
+          <p className="text-3xl font-bold text-gray-800 mb-3">{data.quotesPending}</p>
+          <p className="text-sm text-gray-500">awaiting response</p>
+        </div>
+
+        {/* Accepted Quotes */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center min-h-[220px]">
+          <div className="flex items-center gap-2 mb-8 w-full justify-start">
+            <CheckCircle size={18} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">Accepted Quotes</span>
+          </div>
+          <p className="text-3xl font-bold text-gray-800 mb-3">{data.acceptedQuotes}</p>
+          <p className="text-sm text-gray-500">ready to invoice</p>
+        </div>
+
+        {/* Collected */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col items-center text-center min-h-[220px]">
+          <div className="flex items-center gap-2 mb-8 w-full justify-start">
+            <DollarSign size={18} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">Collected</span>
+          </div>
+          <p className="text-3xl font-bold text-gray-800 mb-3">{fmt(data.collected)}</p>
+          <p className="text-sm text-gray-500">total payments received</p>
+        </div>
       </div>
 
       {/* Recent Quotes & Invoices */}
@@ -58,10 +115,10 @@ export default function AccDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentQuotes.length === 0 ? (
+                {data.recentQuotes.length === 0 ? (
                   <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-500">No quotes</td></tr>
                 ) : (
-                  recentQuotes.map((q, i) => (
+                  data.recentQuotes.map((q, i) => (
                     <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="px-6 py-3 text-sm font-medium text-gray-800">{q.quoteNo}</td>
                       <td className="px-6 py-3 text-sm text-gray-700">{q.customer}</td>
@@ -91,10 +148,10 @@ export default function AccDashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentInvoices.length === 0 ? (
+                {data.recentInvoices.length === 0 ? (
                   <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-500">No invoices</td></tr>
                 ) : (
-                  recentInvoices.map((inv, i) => (
+                  data.recentInvoices.map((inv, i) => (
                     <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="px-6 py-3 text-sm font-medium text-gray-800">{inv.invoiceNo}</td>
                       <td className="px-6 py-3 text-sm text-gray-700">{inv.customer}</td>

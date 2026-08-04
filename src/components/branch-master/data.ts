@@ -1,20 +1,27 @@
 export interface Branch {
-  id: string;
+  id: number;
+  companyId: number;
+  branchCode: string | null;
   branchName: string;
-  connectionString: string;
+  branchType: string;
+
+  // POS Configuration
+  connectionString: string | null;
+  branchDisplayName: string | null;
   dayEndAutoClosing: boolean;
-  customField1: string;
-  customField2: string;
-  rewardPoint: string;
-  footerMsg: string;
-  website: string;
-  billCopy: string;
-  openingTime: string;
-  closingTime: string;
-  graceHours: string;
+  customField1: string | null;
+  customField2: string | null;
+  rewardPoint: string | null;
+  footerMsg: string | null;
+  website: string | null;
+  billCopy: string | null;
+  openingTime: string | null;
+  closingTime: string | null;
+  graceHours: string | null;
   gstSummary: boolean;
   isBarCodeBill: boolean;
-  couponPercent: string;
+  couponPercent: string | null;
+  couponValidity: string | null;
   indentApproval: boolean;
   isDeptKOT: boolean;
   unitPriceEdit: boolean;
@@ -23,22 +30,54 @@ export interface Branch {
   orderTypeBill: boolean;
   isZomato: boolean;
   isSwiggy: boolean;
-  branchDisplayName: string;
-  addr1: string;
-  addr2: string;
-  gstNo: string;
-  phone: string;
-  logo: string;
-  industryID: string;
-  textileGST: string;
-  fssai: string;
+  cloudLogo: string | null;
+
+  // Contact
+  contactPerson: string | null;
+  phone: string | null;
+  alternateMobile: string | null;
+  email: string | null;
+
+  // Address
+  addr1: string | null;
+  addr2: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  pincode: string | null;
+
+  // Tax
+  gstin: string | null;
+  pan: string | null;
+
+  // Logo & Industry
+  logo: string | null;
+  industryID: string | null;
+  textileGST: string | null;
+  fssai: string | null;
+
+  // Status
+  isHeadOffice: boolean;
+  isDefault: boolean;
+  isActive: boolean;
+  remarks: string | null;
+  createdByUserId: number | null;
+  updatedByUserId: number | null;
+  createdAt: string;
+  updatedAt: string;
+  createdByName?: string;
+  updatedByName?: string;
 }
 
 export const sampleBranches: Branch[] = [
   {
-    id: "2",
-    branchName: "Demo2",
+    id: 7,
+    companyId: 6,
+    branchCode: "BR-0001",
+    branchName: "Head Office",
+    branchType: "Branch",
     connectionString: "Data Source=SQL5053.site4now.net;Initial Catalog=DB_A61E7E_demobd1;User Id=DB_A61E7E_demobd1_admin;Password=t4bill@123;",
+    branchDisplayName: "Only Coffee Vegetarian Restaurant",
     dayEndAutoClosing: true,
     customField1: "Remarks",
     customField2: "Attender",
@@ -52,6 +91,7 @@ export const sampleBranches: Branch[] = [
     gstSummary: true,
     isBarCodeBill: false,
     couponPercent: "10.00",
+    couponValidity: "0.0000",
     indentApproval: false,
     isDeptKOT: true,
     unitPriceEdit: false,
@@ -60,14 +100,30 @@ export const sampleBranches: Branch[] = [
     orderTypeBill: false,
     isZomato: false,
     isSwiggy: false,
-    branchDisplayName: "Only Coffee Vegetarian Restaurant",
-    addr1: "S2H Foods And Enterprises Pvt Ltd Mahamaha Kulam, Kumbaknam- 612002 GSTIN: 33ABDCSS478H1Z4",
+    cloudLogo: "branch_2_logo.png",
+    contactPerson: null,
+    phone: "+91 98765 43210",
+    alternateMobile: null,
+    email: null,
+    addr1: "S2H Foods And Enterprises Pvt Ltd Mahamaha Kulam, Kumbakonam- 612002 GSTIN: 33ABDCSS478H1Z4",
     addr2: "",
-    gstNo: "",
-    phone: "",
-    logo: "C:/jpeg",
+    city: null,
+    state: null,
+    country: "India",
+    pincode: null,
+    gstin: "",
+    pan: null,
+    logo: null,
     industryID: "1",
     textileGST: "1",
     fssai: "",
+    isHeadOffice: true,
+    isDefault: true,
+    isActive: true,
+    remarks: null,
+    createdByUserId: null,
+    updatedByUserId: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
 ];

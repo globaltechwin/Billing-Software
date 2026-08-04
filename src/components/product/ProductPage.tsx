@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Lock,
   Upload,
@@ -8,31 +8,58 @@ import {
   ChevronDown,
   ChevronUp,
   Cloud,
-  Maximize2,
-  Settings,
-  X,
+  Loader2,
 } from "lucide-react";
-import {
-  Product,
-  productCategories,
-  vendors,
-  uomList,
-  visibleInOptions,
-  taxGroups,
-  orderTypes,
-  sampleProducts,
-} from "./data";
+import { productCategories, visibleInOptions, orderTypes, categoryUomMap } from "./data";
+
+interface ProductRecord {
+  id: number;
+  productName: string;
+  productCode: string | null;
+  category: string | null;
+  unit: string;
+  purchasePrice: number;
+  sellingPrice: number;
+  barcode: string | null;
+  hsnCode: string | null;
+  reorderLevel: number;
+  currentStock: number;
+  isActive: boolean;
+  gstMaster: { id: number; name: string; totalPercentage: number } | null;
+}
+
+interface GSTRate {
+  id: number;
+  name: string;
+  totalPercentage: number;
+}
+
+interface ApiVendor {
+  id: number;
+  vendorName: string;
+  mobileNumber: string;
+}
 
 export default function ProductPage() {
+  const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [gstRates, setGstRates] = useState<GSTRate[]>([]);
+  const [vendorsList, setVendorsList] = useState<ApiVendor[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+
   // Form state
   const [productCode, setProductCode] = useState("");
   const [productName, setProductName] = useState("");
   const [category, setCategory] = useState("Cat");
   const [vendor, setVendor] = useState("--Select Vendor--");
-  const [uom, setUom] = useState("KG");
+  const [uom, setUom] = useState(categoryUomMap["Cat"][0]);
   const [visibleIn, setVisibleIn] = useState("Both Billing and Inventory");
-  const [taxGroupName, setTaxGroupName] = useState("--Select Tax Group Name");
+  const [taxGroupId, setTaxGroupId] = useState<number | null>(null);
   const [sellingPrice, setSellingPrice] = useState("");
+  const [barcode, setBarcode] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Order type prices
@@ -41,28 +68,71 @@ export default function ProductPage() {
   const [orderAmount, setOrderAmount] = useState("");
   const [orderPrices, setOrderPrices] = useState<{ orderType: string; taxGroup: string; amount: string }[]>([]);
 
-  // Product list
+  // Product list filters
   const [activeTab, setActiveTab] = useState<"active" | "inactive">("active");
   const [visibleFilter, setVisibleFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All Categories");
   const [searchQuery, setSearchQuery] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
-  const [products, setProducts] = useState<Product[]>(sampleProducts);
-  const [showSuccess, setShowSuccess] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Get UOM options for the selected category
+  const getUomOptions = (cat: string): string[] => {
+    return categoryUomMap[cat] || categoryUomMap["Cat"];
+  };
+
+  const fetchProducts = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/products");
+      const data = await res.json();
+      if (data.success && data.products) {
+        setProducts(data.products);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch products, GST rates, vendors, and units on mount
+  useEffect(() => {
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.products) setProducts(data.products);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+    fetch("/api/gst-rates")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.rates) {
+          setGstRates(data.rates.filter((r: { isActive: boolean }) => r.isActive));
+        }
+      })
+      .catch(() => {});
+    fetch("/api/vendors")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.vendors) setVendorsList(data.vendors);
+      })
+      .catch(() => {});
+  }, []);
+
   // Filter products
   const filteredProducts = products.filter((p) => {
-    const matchesTab = activeTab === "active" ? p.status === "Active" : p.status === "Inactive";
-    const matchesVisible = visibleFilter === "All" || p.visibleIn === visibleFilter;
+    const matchesTab = activeTab === "active" ? p.isActive : !p.isActive;
+    const matchesVisible = visibleFilter === "All" || visibleIn.includes(visibleFilter);
     const matchesCategory = categoryFilter === "All Categories" || p.category === categoryFilter;
     const matchesSearch =
       searchQuery === "" ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.barcode.toLowerCase().includes(searchQuery.toLowerCase());
+      p.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.productCode && p.productCode.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (p.barcode && p.barcode.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesTab && matchesVisible && matchesCategory && matchesSearch;
   });
 
@@ -71,39 +141,97 @@ export default function ProductPage() {
   const paginatedProducts = filteredProducts.slice(startIndex, startIndex + entriesPerPage);
 
   // Save product
-  const handleSaveProduct = () => {
-    if (!productName) return;
-    const newProduct: Product = {
-      id: Date.now().toString(),
-      code: productCode || `PRD-${String(products.length + 1).padStart(3, "0")}`,
-      name: productName,
-      category,
-      vendor: vendor === "--Select Vendor--" ? "" : vendor,
-      uom,
-      visibleIn,
-      taxGroupName: taxGroupName === "--Select Tax Group Name" ? "GST 0%" : taxGroupName,
-      sellingPrice: parseFloat(sellingPrice) || 0,
-      mrp: parseFloat(sellingPrice) || 0,
-      barcode: "",
-      reorderQty: 0,
-      status: "Active",
-    };
-    setProducts((prev) => [newProduct, ...prev]);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2000);
-    handleClear();
+  const handleSaveProduct = async () => {
+    if (!productName.trim()) return;
+    if (!taxGroupId) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const body = {
+        productName: productName.trim(),
+        productCode: productCode.trim() || null,
+        category,
+        unit: uom,
+        sellingPrice: parseFloat(sellingPrice) || 0,
+        purchasePrice: parseFloat(sellingPrice) || 0,
+        gstMasterId: taxGroupId,
+        barcode: barcode.trim() || null,
+        hsnCode: null,
+        gstApplicable: true,
+        currentStock: 0,
+        minimumStock: 0,
+        maximumStock: 0,
+        reorderLevel: 0,
+        isActive: true,
+      };
+
+      if (editingId) {
+        const res = await fetch("/api/products", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editingId, ...body }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to update product");
+      } else {
+        const res = await fetch("/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to create product");
+      }
+
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
+      handleClear();
+      fetchProducts();
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Clear form
   const handleClear = () => {
+    setEditingId(null);
     setProductCode("");
     setProductName("");
     setCategory("Cat");
     setVendor("--Select Vendor--");
-    setUom("KG");
+    setUom(categoryUomMap["Cat"][0]);
     setVisibleIn("Both Billing and Inventory");
-    setTaxGroupName("--Select Tax Group Name");
+    setTaxGroupId(null);
     setSellingPrice("");
+    setBarcode("");
+    setSaveError("");
+  };
+
+  // Edit product
+  const handleEdit = (product: ProductRecord) => {
+    setEditingId(product.id);
+    setProductCode(product.productCode || "");
+    setProductName(product.productName);
+    setCategory(product.category || "Cat");
+    setUom(product.unit);
+    setTaxGroupId(product.gstMaster?.id || null);
+    setSellingPrice(String(product.sellingPrice));
+    setBarcode(product.barcode || "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Delete product (soft delete)
+  const handleDelete = async (id: number) => {
+    try {
+      const res = await fetch(`/api/products?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete product");
+      fetchProducts();
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "Failed to delete");
+    }
   };
 
   // Add order type price
@@ -116,24 +244,24 @@ export default function ProductPage() {
     setOrderAmount("");
   };
 
-  // Delete product
-  const handleDelete = (id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-  };
-
   return (
     <div className="flex flex-col h-full p-4 gap-4">
       {/* Success Toast */}
       {showSuccess && (
         <div className="fixed top-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm font-medium">
-          Product saved successfully!
+          {editingId ? "Product updated successfully!" : "Product saved successfully!"}
+        </div>
+      )}
+      {saveError && (
+        <div className="fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm font-medium">
+          {saveError}
         </div>
       )}
 
       {/* Top Section: Form + Image + Order Type Prices */}
-      <div className="flex gap-4">
+      <div className="flex flex-col xl:flex-row gap-4">
         {/* Left: Product Form */}
-        <div className="flex-[7] bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="xl:flex-[7] bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {/* Title Bar */}
           <div className="bg-[#f2f5f9] px-6 py-3 flex items-center justify-between border-b border-gray-200">
             <div className="flex items-center gap-3">
@@ -182,7 +310,14 @@ export default function ProductPage() {
                 </label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value)}
+                  onChange={(e) => {
+                    const newCat = e.target.value;
+                    setCategory(newCat);
+                    const newUomOptions = getUomOptions(newCat);
+                    if (!newUomOptions.includes(uom)) {
+                      setUom(newUomOptions[0]);
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   {productCategories.map((c) => (
@@ -197,8 +332,9 @@ export default function ProductPage() {
                   onChange={(e) => setVendor(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  {vendors.map((v) => (
-                    <option key={v} value={v}>{v}</option>
+                  <option value="--Select Vendor--">--Select Vendor--</option>
+                  {vendorsList.map((v) => (
+                    <option key={v.id} value={v.vendorName}>{v.vendorName}</option>
                   ))}
                 </select>
               </div>
@@ -215,7 +351,7 @@ export default function ProductPage() {
                   onChange={(e) => setUom(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  {uomList.map((u) => (
+                  {getUomOptions(category).map((u) => (
                     <option key={u} value={u}>{u}</option>
                   ))}
                 </select>
@@ -241,12 +377,13 @@ export default function ProductPage() {
                   Tax Group Name <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={taxGroupName}
-                  onChange={(e) => setTaxGroupName(e.target.value)}
+                  value={taxGroupId ?? ""}
+                  onChange={(e) => setTaxGroupId(e.target.value ? Number(e.target.value) : null)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  {taxGroups.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                  <option value="">--Select Tax Group Name</option>
+                  {gstRates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
               </div>
@@ -258,6 +395,22 @@ export default function ProductPage() {
                   type="number"
                   value={sellingPrice}
                   onChange={(e) => setSellingPrice(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Barcode */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-700 font-medium mb-1">
+                  Barcode
+                </label>
+                <input
+                  type="text"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  placeholder="Scan or enter barcode"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -283,9 +436,11 @@ export default function ProductPage() {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSaveProduct}
-                className="px-6 py-2 bg-emerald-500 text-white rounded-md text-sm font-medium hover:bg-emerald-600 transition-colors"
+                disabled={saving}
+                className="px-6 py-2 bg-emerald-500 text-white rounded-md text-sm font-medium hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                Save Product
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {editingId ? "Update Product" : "Save Product"}
               </button>
               <button
                 onClick={handleClear}
@@ -326,35 +481,8 @@ export default function ProductPage() {
           </div>
         </div>
 
-        {/* Right: Image Preview + Order Type Prices */}
-        <div className="flex-[3] flex flex-col gap-4">
-          {/* Product Image Preview */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-800">Product Image Preview</h3>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 flex items-center justify-center h-32">
-                <div className="text-center">
-                  <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">LOGO</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="px-3 py-1.5 border border-gray-300 rounded-md text-xs text-gray-700 hover:bg-gray-50">
-                  Choose file
-                </button>
-                <span className="text-xs text-gray-400">No file chosen</span>
-              </div>
-              <button className="w-full px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 transition-colors flex items-center justify-center gap-2">
-                <Upload className="w-4 h-4" />
-                Upload Product Image
-              </button>
-              <p className="text-xs text-gray-400 text-center">Save product first to enable upload</p>
-            </div>
-          </div>
-
+        {/* Right: Order Type Prices */}
+        <div className="xl:flex-[3] flex flex-col gap-4">
           {/* Order Type Prices */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="px-5 py-3 flex items-center justify-between border-b border-gray-200">
@@ -384,8 +512,8 @@ export default function ProductPage() {
                   onChange={(e) => setOrderTaxGroup(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  {taxGroups.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                  {gstRates.map((t) => (
+                    <option key={t.id} value={t.name}>{t.name}</option>
                   ))}
                 </select>
               </div>
@@ -554,25 +682,35 @@ export default function ProductPage() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1200px]">
             <thead>
               <tr className="bg-[#3d9a7e] text-white">
                 <th className="px-4 py-3 text-left text-xs font-semibold w-12">#</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold w-28">ACTION</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold">CODE</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold">NAME</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">BARCODE</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold">CATEGORY</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold">PRICE</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">MRP</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">BARCODE</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">VISIBLE</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">REORDER QTY</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">TAX GROUP</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">UOM</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">STOCK</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">STATUS</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedProducts.length === 0 ? (
+              {              loading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={11} className="px-4 py-12 text-center text-sm text-gray-500">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading products...
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
                     No data available in table
                   </td>
                 </tr>
@@ -582,7 +720,12 @@ export default function ProductPage() {
                     <td className="px-4 py-3 text-sm text-gray-700">{startIndex + index + 1}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <button className="text-blue-600 hover:text-blue-800 text-xs font-medium">Edit</button>
+                        <button
+                          onClick={() => handleEdit(product)}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                        >
+                          Edit
+                        </button>
                         <span className="text-gray-300">/</span>
                         <button
                           onClick={() => handleDelete(product.id)}
@@ -592,14 +735,19 @@ export default function ProductPage() {
                         </button>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 font-medium">{product.code}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{product.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{product.category}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{product.sellingPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{product.mrp.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{product.barcode}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{product.visibleIn}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{product.reorderQty}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{product.productCode || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{product.productName}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700 font-mono">{product.barcode || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{product.category || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{Number(product.sellingPrice).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{product.gstMaster?.name || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{product.unit}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{Number(product.currentStock).toFixed(2)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.isActive ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                        {product.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
                   </tr>
                 ))
               )}

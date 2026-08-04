@@ -1,11 +1,12 @@
 "use client";
 
-import { Search, Maximize2 } from "lucide-react";
+import { Search, Maximize2, Minimize2 } from "lucide-react";
 
 interface TouchPOSTopBarProps {
   searchQuery: string;
   onSearchChange: (val: string) => void;
   onFullscreen: () => void;
+  isFullscreen: boolean;
   splitEnabled: boolean;
   onSplitToggle: (val: boolean) => void;
   onTableView: () => void;
@@ -15,6 +16,7 @@ export default function TouchPOSTopBar({
   searchQuery,
   onSearchChange,
   onFullscreen,
+  isFullscreen,
   splitEnabled,
   onSplitToggle,
   onTableView,
@@ -38,8 +40,8 @@ export default function TouchPOSTopBar({
         onClick={onFullscreen}
         className="flex items-center gap-1.5 border border-gray-300 text-gray-600 text-sm font-medium px-4 py-2.5 rounded-lg hover:bg-gray-50 transition-colors"
       >
-        <Maximize2 size={14} />
-        Full Screen
+        {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        {isFullscreen ? "Exit Full Screen" : "Enter Full Screen"}
       </button>
 
       {/* Split Toggle */}

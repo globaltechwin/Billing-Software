@@ -16,7 +16,7 @@ export default function BillingHeader() {
       {/* Billing F6 */}
       <button
         onClick={() => router.push("/billing/billing")}
-        className="flex items-center gap-1.5 bg-gradient-to-r from-orange-500 to-orange-400 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-sm cursor-pointer"
+        className="flex items-center gap-1.5 bg-gradient-to-r from-billora-primary to-billora-accent text-white text-sm font-semibold px-4 py-2 rounded-full shadow-sm cursor-pointer"
       >
         Billing
         <span className="bg-white/25 text-[10px] font-bold px-1.5 py-0.5 rounded">

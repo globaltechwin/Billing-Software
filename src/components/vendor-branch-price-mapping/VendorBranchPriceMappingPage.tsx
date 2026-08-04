@@ -307,7 +307,7 @@ export default function VendorBranchPriceMappingPage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[1100px]">
                 <thead>
                   <tr className="bg-[#3d9a7e] text-white">
                     <th className="px-4 py-3 text-left text-xs font-semibold w-12">S.NO</th>

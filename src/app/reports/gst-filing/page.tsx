@@ -22,15 +22,6 @@ interface GstFilingRow {
   invoiceTotal: number;
 }
 
-const sampleData: GstFilingRow[] = [
-  { id: "1", sNo: 1, invoiceNumber: "INV001", invoiceDate: "28/07/2026", customerName: "Ravi Kumar", gstin: "27AABCU9603R1ZM", hsnCode: "996331", taxableValue: 10000, cgstRate: 9, cgstAmount: 900, sgstRate: 9, sgstAmount: 900, igstRate: 0, igstAmount: 0, totalTax: 1800, invoiceTotal: 11800 },
-  { id: "2", sNo: 2, invoiceNumber: "INV002", invoiceDate: "28/07/2026", customerName: "Suresh Patel", gstin: "24AABCS5432F1ZN", hsnCode: "996331", taxableValue: 5000, cgstRate: 9, cgstAmount: 450, sgstRate: 9, sgstAmount: 450, igstRate: 0, igstAmount: 0, totalTax: 900, invoiceTotal: 5900 },
-  { id: "3", sNo: 3, invoiceNumber: "INV003", invoiceDate: "27/07/2026", customerName: "Anita Sharma", gstin: "06AABCF1234G1ZP", hsnCode: "996332", taxableValue: 8000, cgstRate: 9, cgstAmount: 720, sgstRate: 9, sgstAmount: 720, igstRate: 0, igstAmount: 0, totalTax: 1440, invoiceTotal: 9440 },
-  { id: "4", sNo: 4, invoiceNumber: "INV004", invoiceDate: "27/07/2026", customerName: "Mohan Das", gstin: "09AABCM5678H1ZQ", hsnCode: "996331", taxableValue: 15000, cgstRate: 0, cgstAmount: 0, sgstRate: 0, sgstAmount: 0, igstRate: 18, igstAmount: 2700, totalTax: 2700, invoiceTotal: 17700 },
-  { id: "5", sNo: 5, invoiceNumber: "INV005", invoiceDate: "26/07/2026", customerName: "Priya Verma", gstin: "27AABCU9603R1ZM", hsnCode: "996331", taxableValue: 3500, cgstRate: 9, cgstAmount: 315, sgstRate: 9, sgstAmount: 315, igstRate: 0, igstAmount: 0, totalTax: 630, invoiceTotal: 4130 },
-  { id: "6", sNo: 6, invoiceNumber: "INV006", invoiceDate: "26/07/2026", customerName: "Vikram Rao", gstin: "29AABCV9876J1ZL", hsnCode: "996332", taxableValue: 20000, cgstRate: 9, cgstAmount: 1800, sgstRate: 9, sgstAmount: 1800, igstRate: 0, igstAmount: 0, totalTax: 3600, invoiceTotal: 23600 },
-];
-
 export default function GstFilingPage() {
   const today = new Date().toISOString().split("T")[0];
   const [filingType, setFilingType] = useState("itemWise");
@@ -73,9 +64,22 @@ export default function GstFilingPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    setReportData(sampleData);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/reports/gst-filing?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as GstFilingRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -168,7 +172,7 @@ export default function GstFilingPage() {
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors">
             View Report
           </button>
@@ -203,7 +207,7 @@ export default function GstFilingPage() {
       {/* Table Section */}
       {reportData.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+          <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Show</span>
               <select

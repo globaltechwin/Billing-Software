@@ -16,15 +16,6 @@ interface ProfitRetailRow {
   profitPercent: number;
 }
 
-const sampleData: ProfitRetailRow[] = [
-  { id: "1", sNo: 1, billDate: "28/07/2026", category: "Beverages", productName: "Cold Coffee", quantity: 12, billValue: 1440.00, costValue: 720.00, profitValue: 720.00, profitPercent: 50.00 },
-  { id: "2", sNo: 2, billDate: "28/07/2026", category: "Beverages", productName: "Masala Chai", quantity: 25, billValue: 1250.00, costValue: 500.00, profitValue: 750.00, profitPercent: 60.00 },
-  { id: "3", sNo: 3, billDate: "28/07/2026", category: "Snacks", productName: "Veg Samosa", quantity: 18, billValue: 540.00, costValue: 270.00, profitValue: 270.00, profitPercent: 50.00 },
-  { id: "4", sNo: 4, billDate: "27/07/2026", category: "Main Course", productName: "Paneer Butter Masala", quantity: 8, billValue: 1600.00, costValue: 960.00, profitValue: 640.00, profitPercent: 40.00 },
-  { id: "5", sNo: 5, billDate: "27/07/2026", category: "Breads", productName: "Garlic Naan", quantity: 15, billValue: 600.00, costValue: 300.00, profitValue: 300.00, profitPercent: 50.00 },
-  { id: "6", sNo: 6, billDate: "27/07/2026", category: "Desserts", productName: "Gulab Jamun", quantity: 10, billValue: 500.00, costValue: 250.00, profitValue: 250.00, profitPercent: 50.00 },
-];
-
 function downloadCsv(headers: string[], rows: (string | number)[][], filename: string) {
   const lines = [headers.join(",")];
   rows.forEach((row) => lines.push(row.map((v) => `"${v}"`).join(",")));
@@ -76,9 +67,22 @@ export default function ProfitReportRetailPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    setReportData(sampleData);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/reports/profit-retail?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as ProfitRetailRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -144,7 +148,7 @@ export default function ProfitReportRetailPage() {
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a72] transition-colors">
             View Report
           </button>
@@ -156,7 +160,7 @@ export default function ProfitReportRetailPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -235,7 +239,7 @@ export default function ProfitReportRetailPage() {
 
         {/* Total Row */}
         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-start gap-4 pl-4">
+          <div className="flex flex-wrap items-center justify-start gap-4 pl-4">
             <span className="text-sm font-semibold text-gray-700">Total:</span>
             <span className="text-sm font-semibold text-gray-800 min-w-[100px] text-right">
               {reportData.length > 0 ? totals.billValue.toFixed(2) : "0.00"}

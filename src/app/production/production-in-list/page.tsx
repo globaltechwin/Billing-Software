@@ -15,13 +15,14 @@ interface ProductionInRecord {
   createdDate: string;
 }
 
-const sampleProductionInRecords: ProductionInRecord[] = [
-  { id: "1", sNo: 1, prodNo: "PIN-1001", catName: "Morning Session", productionDate: "28/07/2026", numberOfProducts: 3, grandTotal: 4500.00, remarks: "Morning batch received", createdDate: "28/07/2026" },
-  { id: "2", sNo: 2, prodNo: "PIN-1002", catName: "Afternoon Session", productionDate: "27/07/2026", numberOfProducts: 5, grandTotal: 8200.00, remarks: "Afternoon special items", createdDate: "27/07/2026" },
-  { id: "3", sNo: 3, prodNo: "PIN-1003", catName: "Full Day", productionDate: "26/07/2026", numberOfProducts: 2, grandTotal: 3100.00, remarks: "Weekend production", createdDate: "26/07/2026" },
-  { id: "4", sNo: 4, prodNo: "PIN-1004", catName: "Morning Session", productionDate: "25/07/2026", numberOfProducts: 4, grandTotal: 6700.00, remarks: "Regular morning batch", createdDate: "25/07/2026" },
-  { id: "5", sNo: 5, prodNo: "PIN-1005", catName: "Evening Session", productionDate: "24/07/2026", numberOfProducts: 6, grandTotal: 9500.00, remarks: "Evening snacks", createdDate: "24/07/2026" },
-];
+function formatDate(d: Date): string {
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+function toISODate(value: string): string {
+  const [dd, mm, yyyy] = value.split("/");
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export default function ProductionInListPage() {
   const today = new Date().toISOString().split("T")[0];
@@ -32,9 +33,10 @@ export default function ProductionInListPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [showData, setShowData] = useState(false);
+  const [records, setRecords] = useState<ProductionInRecord[]>([]);
 
   const filteredData = useMemo(() => {
-    let data = showData ? sampleProductionInRecords : [];
+    let data = showData ? records : [];
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       data = data.filter(
@@ -45,7 +47,7 @@ export default function ProductionInListPage() {
       );
     }
     return data;
-  }, [showData, searchQuery]);
+  }, [showData, searchQuery, records]);
 
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
@@ -57,8 +59,40 @@ export default function ProductionInListPage() {
   );
 
   const handleViewReport = () => {
-    setShowData(true);
-    setCurrentPage(1);
+    setShowData(false);
+    const params = new URLSearchParams();
+    if (startDate) params.set("fromDate", startDate);
+    if (endDate) params.set("toDate", endDate);
+    fetch(`/api/production-in?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.success) return;
+        setRecords(
+          (d.records as {
+            id: number;
+            prodNo: string;
+            productionCategory: string;
+            productionDate: string;
+            numberOfProducts: number;
+            grandTotal: number;
+            remarks: string;
+            createdAt: string;
+          }[]).map((r, idx) => ({
+            id: String(r.id),
+            sNo: idx + 1,
+            prodNo: r.prodNo,
+            catName: r.productionCategory,
+            productionDate: toISODate(r.productionDate),
+            numberOfProducts: r.numberOfProducts,
+            grandTotal: r.grandTotal,
+            remarks: r.remarks,
+            createdDate: formatDate(new Date(r.createdAt)),
+          }))
+        );
+        setCurrentPage(1);
+        setShowData(true);
+      })
+      .catch(() => {});
   };
 
   const handleClear = () => {
@@ -77,7 +111,7 @@ export default function ProductionInListPage() {
     <div className="flex flex-col h-full p-4 gap-4">
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-base font-semibold text-gray-800">Production-In List</h2>
           <div className="flex items-center gap-1">
             <button className="p-1.5 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100">
@@ -140,7 +174,7 @@ export default function ProductionInListPage() {
           </div>
         </div>
 
-        <div className="px-6 pb-5 flex items-center gap-3">
+        <div className="px-6 pb-5 flex flex-wrap items-center gap-3">
           <button
             onClick={handleViewReport}
             className="px-5 py-2 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a7e] transition-colors"
@@ -158,7 +192,7 @@ export default function ProductionInListPage() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -270,7 +304,7 @@ export default function ProductionInListPage() {
           </div>
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between flex-wrap gap-2">
           <span className="text-sm text-gray-600">
             Showing {filteredData.length > 0 ? startIndex + 1 : 0} to{" "}
             {Math.min(startIndex + entriesPerPage, filteredData.length)} of{" "}

@@ -21,16 +21,32 @@ interface BillRow {
   createdBy: string;
 }
 
-const sampleBills: BillRow[] = [
-  { id: "1", billId: "B001", billNo: "1001", billDate: "28/07/2026", printDate: "28/07/2026 09:15", orderType: "Dine In", subTotal: 450.00, discount: 0, grandTotal: 477.00, paidAmount: 477.00, amountDue: 0, payModes: "Cash", mobile: "9876543210", name: "Ravi Kumar", createdBy: "admin" },
-  { id: "2", billId: "B002", billNo: "1002", billDate: "28/07/2026", printDate: "28/07/2026 10:30", orderType: "Take Away", subTotal: 320.00, discount: 20, grandTotal: 316.80, paidAmount: 316.80, amountDue: 0, payModes: "UPI", mobile: "9876543211", name: "Suresh Patel", createdBy: "admin" },
-  { id: "3", billId: "B003", billNo: "1003", billDate: "28/07/2026", printDate: "28/07/2026 12:00", orderType: "Dine In", subTotal: 780.00, discount: 0, grandTotal: 819.00, paidAmount: 500.00, amountDue: 319.00, payModes: "Card", mobile: "9876543212", name: "Anita Sharma", createdBy: "admin" },
-  { id: "4", billId: "B004", billNo: "1004", billDate: "28/07/2026", printDate: "28/07/2026 13:45", orderType: "Delivery", subTotal: 1200.00, discount: 50, grandTotal: 1219.50, paidAmount: 1219.50, amountDue: 0, payModes: "Cash", mobile: "9876543213", name: "Mohan Das", createdBy: "admin" },
-  { id: "5", billId: "B005", billNo: "1005", billDate: "28/07/2026", printDate: "28/07/2026 15:20", orderType: "Dine In", subTotal: 560.00, discount: 0, grandTotal: 588.00, paidAmount: 588.00, amountDue: 0, payModes: "UPI", mobile: "9876543214", name: "Priya Verma", createdBy: "admin" },
-  { id: "6", billId: "B006", billNo: "1006", billDate: "28/07/2026", printDate: "28/07/2026 17:00", orderType: "Take Away", subTotal: 250.00, discount: 0, grandTotal: 262.50, paidAmount: 262.50, amountDue: 0, payModes: "Cash", mobile: "9876543215", name: "Raj Singh", createdBy: "admin" },
-  { id: "7", billId: "B007", billNo: "1007", billDate: "28/07/2026", printDate: "28/07/2026 18:30", orderType: "Dine In", subTotal: 890.00, discount: 30, grandTotal: 902.55, paidAmount: 902.55, amountDue: 0, payModes: "Card", mobile: "9876543216", name: "Deepa Nair", createdBy: "admin" },
-  { id: "8", billId: "B008", billNo: "1008", billDate: "28/07/2026", printDate: "28/07/2026 19:45", orderType: "Delivery", subTotal: 1500.00, discount: 100, grandTotal: 1470.00, paidAmount: 1470.00, amountDue: 0, payModes: "UPI", mobile: "9876543217", name: "Vikram Rao", createdBy: "admin" },
-];
+interface SummaryTotals {
+  bills: number;
+  subTotal: number;
+  tax: number;
+  discount: number;
+  grandTotal: number;
+  paidAmount: number;
+  amountDue: number;
+  expenses: number;
+  profitLoss: number;
+  returnAmt: number;
+  lastWkSales: number;
+  prevDayPay: number;
+  compliment: number;
+  cancelled: number;
+  runningOrder: number;
+  creditBills: number;
+  delivery: number;
+}
+
+const DEFAULT_TOTALS: SummaryTotals = {
+  bills: 0, subTotal: 0, tax: 0, discount: 0, grandTotal: 0,
+  paidAmount: 0, amountDue: 0, expenses: 0, profitLoss: 0,
+  returnAmt: 0, lastWkSales: 0, prevDayPay: 0, compliment: 0,
+  cancelled: 0, runningOrder: 0, creditBills: 0, delivery: 0,
+};
 
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
@@ -58,6 +74,7 @@ export default function SalesReportPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [reportData, setReportData] = useState<BillRow[]>([]);
+  const [summaryTotals, setSummaryTotals] = useState<SummaryTotals>(DEFAULT_TOTALS);
   const [hasSearched, setHasSearched] = useState(false);
 
   const filteredData = useMemo(() => {
@@ -80,24 +97,36 @@ export default function SalesReportPage() {
   const startIndex = (currentPage - 1) * entriesPerPage;
   const paginatedData = filteredData.slice(startIndex, startIndex + entriesPerPage);
 
-  const totals = useMemo(() => {
-    const t = { bills: 0, subTotal: 0, tax: 0, discount: 0, grandTotal: 0, paidAmount: 0, amountDue: 0, expenses: 0, profitLoss: 0, returnAmt: 0, lastWkSales: 300, prevDayPay: 0, compliment: 0, cancelled: 0, runningOrder: 0, creditBills: 0, delivery: 0 };
-    reportData.forEach((r) => {
-      t.bills += 1;
-      t.subTotal += r.subTotal;
-      t.discount += r.discount;
-      t.grandTotal += r.grandTotal;
-      t.paidAmount += r.paidAmount;
-      t.amountDue += r.amountDue;
-      t.tax += r.grandTotal - r.subTotal;
-    });
-    return t;
-  }, [reportData]);
+  const totals = summaryTotals;
 
-  const handleView = () => {
-    setReportData(sampleBills);
+  const handleView = async () => {
     setHasSearched(true);
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams({
+        fromDate,
+        fromTime,
+        toDate,
+        toTime,
+        user: selectUser,
+        attender: selectAttender,
+        customerType,
+        orderType,
+        fetchAll: "true",
+      });
+      const res = await fetch(`/api/reports/sales?${params.toString()}`);
+      const data = await res.json();
+      if (data.success) {
+        setReportData(data.rows);
+        setSummaryTotals(data.totals);
+      } else {
+        setReportData([]);
+        setSummaryTotals(DEFAULT_TOTALS);
+      }
+    } catch {
+      setReportData([]);
+      setSummaryTotals(DEFAULT_TOTALS);
+    }
   };
 
   const handleClear = () => {
@@ -111,6 +140,7 @@ export default function SalesReportPage() {
     setOrderType("All");
     setSearchQuery("");
     setReportData([]);
+    setSummaryTotals(DEFAULT_TOTALS);
     setHasSearched(false);
     setCurrentPage(1);
   };
@@ -234,7 +264,7 @@ export default function SalesReportPage() {
 
       {/* Order Type / Payment / Tax */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-3 flex items-center gap-6">
+        <div className="px-6 py-3 flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">ORDER TYPE</span>
             <select
@@ -262,7 +292,7 @@ export default function SalesReportPage() {
         <div className="px-6 py-3 border-b border-gray-200">
           <h3 className="text-sm font-semibold text-gray-800">Bill List</h3>
         </div>
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select

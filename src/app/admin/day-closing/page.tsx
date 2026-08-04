@@ -1,27 +1,71 @@
 "use client";
 
-import { useState } from "react";
-import { sampleBranches } from "@/components/branch-master/data";
+import { useEffect, useState } from "react";
+
+interface BranchInfo {
+  openingTime: string;
+  closingTime: string;
+  graceHours: string;
+}
 
 export default function DayClosingPage() {
-  const today = new Date().toLocaleDateString("en-GB");
-  const branch = sampleBranches[0];
+  const [today, setToday] = useState("");
 
   const [processing, setProcessing] = useState(false);
   const [closed, setClosed] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [branchInfo, setBranchInfo] = useState<BranchInfo | null>(null);
+  const [businessDate, setBusinessDate] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    fetch("/api/day-closing")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("Failed to load day closing status"))))
+      .then((data) => {
+        setToday(new Date().toLocaleDateString("en-GB"));
+        setBranchInfo({
+          openingTime: data.branch.openingTime,
+          closingTime: data.branch.closingTime,
+          graceHours: data.branch.graceHours,
+        });
+        setBusinessDate(data.businessDate);
+        setClosed(data.isClosed);
+      })
+      .catch(() => setNotice("Failed to load day closing status."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const systemDate = (() => {
+    if (!businessDate) return today;
+    const [y, m, d] = businessDate.split("-");
+    return `${d}/${m}/${y}`;
+  })();
 
   const handleProcess = () => {
+    setNotice("");
     setShowConfirm(true);
   };
 
   const handleConfirmClose = () => {
     setShowConfirm(false);
     setProcessing(true);
-    setTimeout(() => {
-      setProcessing(false);
-      setClosed(true);
-    }, 1500);
+    setNotice("");
+    fetch("/api/day-closing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ businessDate }),
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to close the day");
+        }
+        return data;
+      })
+      .then(() => setClosed(true))
+      .catch((error: Error) => setNotice(error.message))
+      .finally(() => setProcessing(false));
   };
 
   const handleCancel = () => {
@@ -38,28 +82,28 @@ export default function DayClosingPage() {
           </button>
         </div>
 
-        <div className="p-6 flex gap-6">
+        <div className="p-6 flex flex-col lg:flex-row gap-6">
           {/* Left: Day Info */}
           <div className="flex-1 border border-gray-200 rounded-lg overflow-hidden">
             <div className="flex items-center gap-3 px-5 py-3.5 bg-gray-50 border-b border-gray-200">
               <div className="w-3 h-3 bg-blue-500 rounded-sm flex-shrink-0" />
               <span className="text-sm font-semibold text-gray-700 w-36">System Date :</span>
-              <span className="text-sm font-medium text-gray-900">{today}</span>
+              <span className="text-sm font-medium text-gray-900" suppressHydrationWarning>{systemDate || "--"}</span>
             </div>
             <div className="flex items-center gap-3 px-5 py-3.5 bg-white border-b border-gray-200">
               <div className="w-3 h-3 bg-blue-500 rounded-sm flex-shrink-0" />
               <span className="text-sm font-semibold text-gray-700 w-36">Opening Time :</span>
-              <span className="text-sm font-medium text-gray-900">{branch.openingTime}</span>
+              <span className="text-sm font-medium text-gray-900">{branchInfo?.openingTime || "--:--"}</span>
             </div>
             <div className="flex items-center gap-3 px-5 py-3.5 bg-gray-50 border-b border-gray-200">
               <div className="w-3 h-3 bg-blue-500 rounded-sm flex-shrink-0" />
               <span className="text-sm font-semibold text-gray-700 w-36">Closing Time :</span>
-              <span className="text-sm font-medium text-gray-900">{branch.closingTime}</span>
+              <span className="text-sm font-medium text-gray-900">{branchInfo?.closingTime || "--:--"}</span>
             </div>
             <div className="flex items-center gap-3 px-5 py-3.5 bg-white">
               <div className="w-3 h-3 bg-blue-500 rounded-sm flex-shrink-0" />
               <span className="text-sm font-semibold text-gray-700 w-36">Grace Hours :</span>
-              <span className="text-sm font-medium text-gray-900">{branch.graceHours}</span>
+              <span className="text-sm font-medium text-gray-900">{branchInfo?.graceHours || "--"}</span>
             </div>
           </div>
 
@@ -93,11 +137,14 @@ export default function DayClosingPage() {
           ) : (
             <button
               onClick={handleProcess}
-              disabled={processing}
+              disabled={processing || loading}
               className="px-6 py-2.5 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a7e] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {processing ? "Processing..." : "Process (Day End Closing)"}
             </button>
+          )}
+          {notice && (
+            <p className="mt-3 text-sm text-red-600">{notice}</p>
           )}
         </div>
       </div>
@@ -113,7 +160,7 @@ export default function DayClosingPage() {
             <div className="px-6 py-5">
               <p className="text-sm text-gray-700 leading-relaxed">
                 Are you sure you want to close the day? This action will finalize all transactions for{" "}
-                <span className="font-semibold">{today}</span>. Once closed, no further modifications will be allowed for this business day.
+                <span className="font-semibold">{systemDate}</span>. Once closed, no further modifications will be allowed for this business day.
               </p>
             </div>
             <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-end gap-3">

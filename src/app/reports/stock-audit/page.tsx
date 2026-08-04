@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { X } from "lucide-react";
-import { sampleProducts, productCategories } from "@/components/product/data";
 
 interface StockAuditRow {
   id: string;
@@ -19,15 +18,6 @@ interface StockAuditRow {
   stockValue: number;
   status: string;
 }
-
-const sampleData: StockAuditRow[] = [
-  { id: "1", sNo: 1, auditDate: "28/07/2026", productName: "Rice (Basmati)", productCode: "PRD-001", category: "Food", uom: "KG", systemQty: 100, physicalQty: 95, difference: -5, unitPrice: 95.00, stockValue: 9025.00, status: "Shortage" },
-  { id: "2", sNo: 2, auditDate: "28/07/2026", productName: "Sugar (White)", productCode: "PRD-002", category: "Food", uom: "KG", systemQty: 80, physicalQty: 82, difference: 2, unitPrice: 50.00, stockValue: 4100.00, status: "Excess" },
-  { id: "3", sNo: 3, auditDate: "28/07/2026", productName: "Sunflower Oil", productCode: "PRD-004", category: "Food", uom: "Ltr", systemQty: 30, physicalQty: 30, difference: 0, unitPrice: 130.00, stockValue: 3900.00, status: "Match" },
-  { id: "4", sNo: 4, auditDate: "27/07/2026", productName: "Turmeric Powder", productCode: "PRD-006", category: "Food", uom: "Gm", systemQty: 200, physicalQty: 180, difference: -20, unitPrice: 65.00, stockValue: 11700.00, status: "Shortage" },
-  { id: "5", sNo: 5, auditDate: "27/07/2026", productName: "Milk (Full Cream)", productCode: "PRD-011", category: "Food", uom: "Ltr", systemQty: 50, physicalQty: 50, difference: 0, unitPrice: 60.00, stockValue: 3000.00, status: "Match" },
-  { id: "6", sNo: 6, auditDate: "26/07/2026", productName: "Paneer (Fresh)", productCode: "PRD-013", category: "Food", uom: "Gm", systemQty: 80, physicalQty: 75, difference: -5, unitPrice: 100.00, stockValue: 7500.00, status: "Shortage" },
-];
 
 function downloadCsv(headers: string[], rows: (string | number)[][], filename: string) {
   const lines = [headers.join(",")];
@@ -49,11 +39,25 @@ export default function StockAuditReportPage() {
   const [endDate, setEndDate] = useState(today);
   const [category, setCategory] = useState("");
   const [product, setProduct] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [products, setProducts] = useState<string[]>([]);
   const [productType, setProductType] = useState("Inventory");
   const [searchQuery, setSearchQuery] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [reportData, setReportData] = useState<StockAuditRow[]>([]);
+
+  useEffect(() => {
+    fetch("/api/reports/stock-audit")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setCategories(data.categories ?? []);
+          setProducts(data.products ?? []);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredData = useMemo(() => {
     let data = reportData;
@@ -85,12 +89,24 @@ export default function StockAuditReportPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    let data = sampleData;
-    if (category) data = data.filter((r) => r.category === category);
-    if (product) data = data.filter((r) => r.productName === product);
-    setReportData(data);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (category) params.set("category", category);
+      if (product) params.set("product", product);
+      const res = await fetch(`/api/reports/stock-audit?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as StockAuditRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -160,7 +176,7 @@ export default function StockAuditReportPage() {
                 className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none pr-7 w-[180px]"
               >
                 <option value="">-- All --</option>
-                {productCategories.map((c) => (
+                {categories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -180,8 +196,8 @@ export default function StockAuditReportPage() {
                 className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none pr-7 w-[180px]"
               >
                 <option value="">-- All --</option>
-                {sampleProducts.map((p) => (
-                  <option key={p.id} value={p.name}>{p.name}</option>
+                {products.map((p) => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
               </select>
               {product && (
@@ -209,7 +225,7 @@ export default function StockAuditReportPage() {
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a72] transition-colors">
             View Report
           </button>
@@ -221,7 +237,7 @@ export default function StockAuditReportPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select

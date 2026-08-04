@@ -15,15 +15,6 @@ interface DayWiseStockRow {
   totalStockValue: number;
 }
 
-const sampleData: DayWiseStockRow[] = [
-  { id: "1", sNo: 1, date: "26/07/2026", productName: "Rice", openingStock: 100, stockIn: 50, stockOut: 30, closingStock: 120, totalStockValue: 4800 },
-  { id: "2", sNo: 2, date: "26/07/2026", productName: "Coffee Powder", openingStock: 20, stockIn: 10, stockOut: 5, closingStock: 25, totalStockValue: 5000 },
-  { id: "3", sNo: 3, date: "27/07/2026", productName: "Rice", openingStock: 120, stockIn: 30, stockOut: 40, closingStock: 110, totalStockValue: 4400 },
-  { id: "4", sNo: 4, date: "27/07/2026", productName: "Coffee Powder", openingStock: 25, stockIn: 15, stockOut: 8, closingStock: 32, totalStockValue: 6400 },
-  { id: "5", sNo: 5, date: "28/07/2026", productName: "Rice", openingStock: 110, stockIn: 40, stockOut: 25, closingStock: 125, totalStockValue: 5000 },
-  { id: "6", sNo: 6, date: "28/07/2026", productName: "Coffee Powder", openingStock: 32, stockIn: 20, stockOut: 10, closingStock: 42, totalStockValue: 8400 },
-];
-
 export default function DayWiseStockReportPage() {
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
@@ -63,9 +54,23 @@ export default function DayWiseStockReportPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    setReportData(sampleData);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (product) params.set("product", product);
+      const res = await fetch(`/api/reports/day-wise-stock?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as DayWiseStockRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -143,7 +148,7 @@ export default function DayWiseStockReportPage() {
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors">
             View Report
           </button>
@@ -155,7 +160,7 @@ export default function DayWiseStockReportPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -233,7 +238,7 @@ export default function DayWiseStockReportPage() {
         {/* Total Row */}
         {reportData.length > 0 && (
           <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex justify-end">
-            <div className="flex items-center gap-8 pr-4">
+            <div className="flex flex-wrap items-center gap-8 pr-4">
               <span className="text-sm font-semibold text-gray-700">Total:</span>
               <span className="text-sm font-semibold text-gray-800 min-w-[60px] text-center">{totals.openingStock}</span>
               <span className="text-sm font-semibold text-gray-800 min-w-[60px] text-center">{totals.stockIn}</span>

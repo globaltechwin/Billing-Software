@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { X } from "lucide-react";
-import { sampleCustomers } from "@/components/customer/data";
 
 interface WalletTopUpRow {
   id: string;
@@ -17,15 +16,6 @@ interface WalletTopUpRow {
   createdBy: string;
   date: string;
 }
-
-const sampleData: WalletTopUpRow[] = [
-  { id: "1", sNo: 1, employeeName: "Madhusudan Khemka", employeeId: "0000", cardNumber: "WC-1001", mobile: "9876543210", department: "Administration", amount: 2000.00, paymode: "Cash", createdBy: "admin", date: "28/07/2026" },
-  { id: "2", sNo: 2, employeeName: "Harikrishnan Arumugam", employeeId: "1001", cardNumber: "WC-1002", mobile: "9876543211", department: "Operations", amount: 1500.00, paymode: "UPI", createdBy: "admin", date: "28/07/2026" },
-  { id: "3", sNo: 3, employeeName: "Omkar Tanti", employeeId: "1002", cardNumber: "WC-1003", mobile: "9876543212", department: "Finance", amount: 3000.00, paymode: "Card", createdBy: "manager1", date: "27/07/2026" },
-  { id: "4", sNo: 4, employeeName: "Pappu Tanti", employeeId: "1004", cardNumber: "WC-1004", mobile: "9876543213", department: "Operations", amount: 500.00, paymode: "Cash", createdBy: "admin", date: "27/07/2026" },
-  { id: "5", sNo: 5, employeeName: "Dinesh Dutt Koka", employeeId: "10068", cardNumber: "WC-1005", mobile: "9876543214", department: "IT", amount: 1000.00, paymode: "UPI", createdBy: "admin", date: "26/07/2026" },
-  { id: "6", sNo: 6, employeeName: "Jeewan Tanti", employeeId: "1008", cardNumber: "WC-1006", mobile: "9876543215", department: "Operations", amount: 2500.00, paymode: "Cash", createdBy: "manager1", date: "26/07/2026" },
-];
 
 function downloadCsv(headers: string[], rows: (string | number)[][], filename: string) {
   const lines = [headers.join(",")];
@@ -74,9 +64,36 @@ export default function WalletTopUpReportPage() {
     return filteredData.reduce((sum, r) => sum + r.amount, 0);
   }, [filteredData]);
 
-  const handleViewReport = () => {
-    setReportData(sampleData);
-  };
+  const handleViewReport = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (payMode !== "All") params.set("payMode", payMode);
+      if (searchQuery) params.set("search", searchQuery);
+      params.set("limit", "200");
+
+      const res = await fetch(`/api/wallet?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && data.transactions) {
+        setReportData(data.transactions.map((t: Record<string, unknown>) => ({
+          id: String(t.id),
+          sNo: t.sNo,
+          employeeName: t.employeeName || "",
+          employeeId: t.employeeId || "",
+          cardNumber: t.cardNumber || "",
+          mobile: t.mobile || "",
+          department: t.department || "",
+          amount: parseFloat(String(t.amount)) || 0,
+          paymode: t.paymode || "",
+          createdBy: t.createdBy || "",
+          date: t.date || "",
+        })));
+      }
+    } catch {
+      setReportData([]);
+    }
+  }, [startDate, endDate, payMode, searchQuery]);
 
   const handleClear = () => {
     setStartDate(today);
@@ -144,12 +161,14 @@ export default function WalletTopUpReportPage() {
               <option value="Cash">Cash</option>
               <option value="Card">Card</option>
               <option value="UPI">UPI</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Other">Other</option>
             </select>
           </div>
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a72] transition-colors">
             View Report
           </button>
@@ -161,7 +180,7 @@ export default function WalletTopUpReportPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <button onClick={handleExportExcel} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">
             Download Excel
           </button>

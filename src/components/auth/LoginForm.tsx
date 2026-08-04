@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import {
   User,
   Lock,
@@ -41,7 +40,6 @@ const FEATURES = [
 ] as const;
 
 export default function LoginForm() {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -89,7 +87,18 @@ export default function LoginForm() {
         JSON.stringify(data.allowedModules),
       );
 
-      router.push("/dashboard");
+      // Store menu access paths (null = no custom access = show all)
+      if (data.allowedMenuPaths) {
+        localStorage.setItem("billora_menu_paths", JSON.stringify(data.allowedMenuPaths));
+      } else {
+        localStorage.removeItem("billora_menu_paths");
+      }
+
+      // Full-page navigation (not router.push): guarantees the freshly-set
+      // httpOnly session cookie is attached to the next request. On phones,
+      // a client-side push can race the Set-Cookie and the middleware would
+      // bounce the user straight back to the login page.
+      window.location.href = "/welcome";
     } catch (error) {
       console.error("Login error:", error);
       setError("Something went wrong. Please try again.");
@@ -179,7 +188,7 @@ export default function LoginForm() {
           </div>
 
           {/* Bottom section — tight spacing */}
-          <div className="mt-24">
+          <div className="mt-12 sm:mt-24">
             <a
               href="https://www.facebook.com/"
               target="_blank"
@@ -190,7 +199,7 @@ export default function LoginForm() {
               Follow us on Facebook
             </a>
 
-            <div className="mt-20 space-y-2">
+            <div className="mt-10 sm:mt-20 space-y-2">
               <div className="flex justify-center">
                 <div className="w-11 h-11 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center">
                   <MessageCircle size={20} className="text-gray-300" />

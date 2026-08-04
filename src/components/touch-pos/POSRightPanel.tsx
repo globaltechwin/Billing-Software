@@ -282,7 +282,7 @@ export default function POSRightPanel({
           </button>
           <button
             onClick={onHold}
-            className="flex-1 bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white text-sm font-semibold py-3 rounded-xl shadow-sm transition-colors"
+            className="flex-1 bg-gradient-to-r from-billora-primary to-billora-accent hover:from-billora-primary-dark hover:to-billora-primary text-white text-sm font-semibold py-3 rounded-xl shadow-sm transition-colors"
           >
             Hold
           </button>

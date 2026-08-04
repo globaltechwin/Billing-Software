@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Plus, Pencil, Trash2, Mail, Link, Printer, FileText, ArrowLeft, Search, Send } from "lucide-react";
 
 interface LineItem {
@@ -10,36 +10,30 @@ interface LineItem {
 interface Quote {
   id: string; quoteNo: string; customer: string; date: string; expiryDate: string;
   status: "Draft" | "Sent" | "Approved" | "Rejected" | "Expired" | "Converted";
-  items: LineItem[]; discount: number; taxRate: number; notes: string; terms: string;
+  items: LineItem[]; discount: number; discountType: string; taxRate: number; notes: string; terms: string;
 }
 
-const initialQuotes: Quote[] = [
-  { id:"1",quoteNo:"QT-0005",customer:"1002-Omkar Tanti",date:"17/06/2026",expiryDate:"17/07/2026",status:"Sent",items:[{id:"1",item:"abc",description:"3333",hsn:"",qty:2,rate:333,amount:666}],discount:0,taxRate:0,notes:"",terms:"" },
-  { id:"2",quoteNo:"QT-0004",customer:"1001-Harikrishnan Arumugam",date:"17/06/2026",expiryDate:"17/07/2026",status:"Draft",items:[],discount:0,taxRate:0,notes:"",terms:"" },
-  { id:"3",quoteNo:"QT-0003",customer:"1008-Jeewan Tanti",date:"17/06/2026",expiryDate:"17/07/2026",status:"Draft",items:[],discount:0,taxRate:0,notes:"",terms:"" },
-  { id:"4",quoteNo:"QT-0002",customer:"1001-Harikrishnan Arumugam",date:"17/06/2026",expiryDate:"17/07/2026",status:"Draft",items:[],discount:0,taxRate:0,notes:"",terms:"" },
-  { id:"5",quoteNo:"QT-0001",customer:"1010-Manikandan E",date:"12/06/2026",expiryDate:"12/07/2026",status:"Draft",items:[],discount:0,taxRate:0,notes:"",terms:"" },
-];
-
-const fmt = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ENTRIES_PER_PAGE = 25;
 const statusColors: Record<string, string> = {
   Draft:"bg-gray-200 text-gray-700", Sent:"bg-blue-500 text-white",
   Approved:"bg-green-100 text-green-700", Rejected:"bg-red-100 text-red-700",
   Expired:"bg-orange-100 text-orange-700", Converted:"bg-purple-100 text-purple-700"
 };
 
-const customers = ["1002-Omkar Tanti","1001-Harikrishnan Arumugam","1008-Jeewan Tanti","1010-Manikandan E","1003-Rajesh Kumar","1004-Priya Sharma"];
+const fmt = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function QuotePage() {
-  const [quotes, setQuotes] = useState<Quote[]>(initialQuotes);
-  const [selectedId, setSelectedId] = useState<string>("1");
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
   const [view, setView] = useState<"detail" | "new" | "edit">("detail");
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [customerList, setCustomerList] = useState<string[]>([]);
 
-  // Form state
   const [formCustomer, setFormCustomer] = useState("");
   const [formStatus, setFormStatus] = useState("Draft");
-  const [formDate, setFormDate] = useState("2026-07-29");
+  const [formDate, setFormDate] = useState("");
   const [formExpiry, setFormExpiry] = useState("");
   const [formDiscount, setFormDiscount] = useState("0");
   const [formDiscountType, setFormDiscountType] = useState("%");
@@ -47,35 +41,80 @@ export default function QuotePage() {
   const [formItems, setFormItems] = useState<LineItem[]>([]);
   const [formNotes, setFormNotes] = useState("");
   const [formTerms, setFormTerms] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
 
-  const filteredQuotes = quotes.filter(q =>
-    q.quoteNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    q.customer.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const fetchQuotes = useCallback(async (page: number) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(ENTRIES_PER_PAGE));
+      if (searchQuery) params.set("search", searchQuery);
+      const res = await fetch(`/api/quotes?${params.toString()}`);
+      const json = await res.json();
+      if (json.success) {
+        setQuotes(json.quotes);
+      }
+    } catch (e) {
+      console.error("Failed to fetch quotes:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery]);
 
-  const selectedQuote = quotes.find(q => q.id === selectedId);
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", String(ENTRIES_PER_PAGE));
+    fetch(`/api/quotes?${params.toString()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          setQuotes(json.quotes);
+        }
+      })
+      .catch(e => console.error("Failed to fetch quotes:", e));
+  }, []);
 
-  const handleNew = () => {
-    setView("new");
-    setFormCustomer(""); setFormStatus("Draft"); setFormDate("2026-07-29");
-    setFormExpiry(""); setFormDiscount("0"); setFormDiscountType("%");
-    setFormTaxRate("0"); setFormItems([]); setFormNotes(""); setFormTerms("");
-  };
+  useEffect(() => {
+    fetch("/api/customers?activeOnly=true&limit=100")
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          setCustomerList(json.customers.map((c: { customerCode: string; customerName: string }) => {
+            const label = c.customerCode ? `${c.customerCode}-${c.customerName}` : c.customerName;
+            return label;
+          }));
+        }
+      })
+      .catch(e => console.error("Failed to fetch customers:", e));
+  }, []);
 
   const handleSelect = (id: string) => { setSelectedId(id); setView("detail"); };
 
+  const handleNew = () => {
+    setView("new");
+    setFormCustomer(""); setFormStatus("Draft"); setFormDate("");
+    setFormExpiry(""); setFormDiscount("0"); setFormDiscountType("%");
+    setFormTaxRate("0"); setFormItems([]); setFormNotes(""); setFormTerms("");
+    setEditId(null);
+  };
+
   const handleEdit = () => {
+    const selectedQuote = quotes.find(q => q.id === selectedId);
     if (!selectedQuote) return;
     setView("edit");
     setFormCustomer(selectedQuote.customer);
     setFormStatus(selectedQuote.status);
-    setFormDate("2026-07-29");
-    setFormExpiry("");
+    setFormDate(selectedQuote.date);
+    setFormExpiry(selectedQuote.expiryDate);
     setFormDiscount(String(selectedQuote.discount));
+    setFormDiscountType(selectedQuote.discountType || "%");
     setFormTaxRate(String(selectedQuote.taxRate));
     setFormItems([...selectedQuote.items]);
     setFormNotes(selectedQuote.notes);
     setFormTerms(selectedQuote.terms);
+    setEditId(selectedQuote.id);
   };
 
   const handleAddLine = () => {
@@ -99,33 +138,83 @@ export default function QuotePage() {
   const taxAmt = taxableAmt * (Number(formTaxRate) / 100);
   const total = taxableAmt + taxAmt;
 
-  const handleSave = () => {
-    if (!formCustomer) { alert("Customer is required."); return; }
-    const newQuote: Quote = {
-      id: String(quotes.length + 1), quoteNo: `QT-${String(quotes.length + 1).padStart(4, "0")}`,
-      customer: formCustomer, date: formDate, expiryDate: formExpiry, status: formStatus as Quote["status"],
-      items: formItems, discount: Number(formDiscount), taxRate: Number(formTaxRate), notes: formNotes, terms: formTerms
-    };
-    setQuotes(prev => [newQuote, ...prev]);
-    setSelectedId(newQuote.id);
-    setView("detail");
-  };
+  const handleSave = async () => {
+    if (!formCustomer.trim()) { alert("Customer is required."); return; }
 
-  const handleDelete = (id: string) => {
-    if (confirm("Delete this quote?")) {
-      setQuotes(prev => prev.filter(q => q.id !== id));
-      if (selectedId === id) { setSelectedId(quotes[0]?.id || ""); setView("detail"); }
+    setSaving(true);
+    try {
+      const payload = {
+        customerName: formCustomer.trim(),
+        status: formStatus,
+        quoteDate: formDate || new Date().toISOString().split("T")[0],
+        expiryDate: formExpiry || null,
+        discount: Number(formDiscount),
+        discountType: formDiscountType,
+        taxRate: Number(formTaxRate),
+        notes: formNotes,
+        terms: formTerms,
+        items: formItems.map(item => ({
+          item: item.item,
+          description: item.description,
+          hsn: item.hsn,
+          qty: item.qty,
+          rate: item.rate,
+          amount: item.amount,
+        })),
+      };
+
+      if (editId) {
+        await fetch("/api/quotes", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editId, ...payload }),
+        });
+      } else {
+        await fetch("/api/quotes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      setView("detail");
+      fetchQuotes(1);
+    } catch (e) {
+      console.error("Failed to save quote:", e);
+      alert("Failed to save quote.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const getSubtotal = (q: Quote) => q.items.reduce((s, i) => s + i.amount, 0);
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this quote?")) return;
+    try {
+      const res = await fetch(`/api/quotes?id=${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        if (selectedId === id) {
+          setSelectedId(quotes[0]?.id || "");
+          setView("detail");
+        }
+        fetchQuotes(1);
+      } else {
+        alert(json.error || "Failed to delete quote.");
+      }
+    } catch (e) {
+      console.error("Failed to delete quote:", e);
+      alert("Failed to delete quote.");
+    }
+  };
+
+  const selectedQuote = quotes.find(q => q.id === selectedId);
 
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 pt-4 pb-2"><h1 className="text-xl font-bold text-gray-800">Quotes create & send</h1></div>
-      <div className="flex flex-1 min-h-0 px-4 pb-4 gap-4">
+      <div className="flex flex-col xl:flex-row flex-1 min-h-0 px-4 pb-4 gap-4">
         {/* Left Panel - Quote List */}
-        <div className="w-[320px] flex-shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+        <div className="w-full xl:w-[320px] flex-shrink-0 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
             <h2 className="text-sm font-bold text-gray-800">All Quotes</h2>
             <button onClick={handleNew} className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 text-white rounded-md text-xs font-medium hover:bg-blue-600"><Plus size={12} /> New</button>
@@ -134,22 +223,28 @@ export default function QuotePage() {
             <div className="relative"><Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" /><input type="text" placeholder="Search quote no / customer..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {filteredQuotes.map(q => {
-              const sub = getSubtotal(q);
-              const isSelected = q.id === selectedId;
-              return (
-                <button key={q.id} onClick={() => handleSelect(q.id)} className={`w-full px-4 py-3 text-left border-b border-gray-100 hover:bg-gray-50 ${isSelected ? "bg-blue-50 border-l-4 border-l-blue-500" : "border-l-4 border-l-transparent"}`}>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-sm font-semibold text-gray-800">{q.customer}</span>
-                    <span className="text-sm font-medium text-gray-800">₹{fmt(sub)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">{q.quoteNo} • {q.date} {q.status === "Sent" && <Send size={10} className="inline ml-1 text-blue-500" />}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColors[q.status]}`}>{q.status}</span>
-                  </div>
-                </button>
-              );
-            })}
+            {loading ? (
+              <div className="px-4 py-8 text-center text-sm text-gray-500">Loading...</div>
+            ) : quotes.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-gray-500">No quotes</div>
+            ) : (
+              quotes.map(q => {
+                const sub = q.items.reduce((s, i) => s + i.amount, 0);
+                const isSelected = q.id === selectedId;
+                return (
+                  <button key={q.id} onClick={() => handleSelect(q.id)} className={`w-full px-4 py-3 text-left border-b border-gray-100 hover:bg-gray-50 ${isSelected ? "bg-blue-50 border-l-4 border-l-blue-500" : "border-l-4 border-l-transparent"}`}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-sm font-semibold text-gray-800">{q.customer}</span>
+                      <span className="text-sm font-medium text-gray-800">₹{fmt(sub)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">{q.quoteNo} • {q.date} {q.status === "Sent" && <Send size={10} className="inline ml-1 text-blue-500" />}</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusColors[q.status]}`}>{q.status}</span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -165,10 +260,10 @@ export default function QuotePage() {
                   <span className="text-xs text-gray-500">Sent {selectedQuote.date}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">{selectedQuote.customer} • ₹{fmt(getSubtotal(selectedQuote))}</span>
+                  <span className="text-sm text-gray-600">{selectedQuote.customer} • ₹{fmt(selectedQuote.items.reduce((s, i) => s + i.amount, 0))}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 mb-6">
+              <div className="flex flex-wrap items-center gap-2 mb-6">
                 <button onClick={handleEdit} className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"><Pencil size={14} /> Edit</button>
                 <button className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"><Mail size={14} /> Email</button>
                 <button className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"><Link size={14} /> Payment Link</button>
@@ -187,7 +282,7 @@ export default function QuotePage() {
               <div className="border border-gray-200 border-t-0 rounded-b-lg p-6">
                 <div className="flex items-start justify-between mb-6">
                   <div><h2 className="text-2xl font-bold text-indigo-600">QUOTATION</h2><p className="text-sm text-gray-600 mt-1"># {selectedQuote.quoteNo}</p></div>
-                  <div className="text-right"><p className="text-sm text-gray-600">Issue: {selectedQuote.date}</p><span className={`inline-block px-2 py-0.5 rounded text-xs font-bold uppercase mt-1 ${statusColors[selectedQuote.status]}`}>{selectedQuote.status}</span></div>
+                  <div className="text-right"><p className="text-sm text-gray-600">Issue: {selectedQuote.date}</p><span className={`inline-block px-2 py-0.5 rounded text-xs font-bold mt-1 ${statusColors[selectedQuote.status]}`}>{selectedQuote.status}</span></div>
                 </div>
 
                 <div className="mb-6"><p className="text-xs text-gray-500 uppercase">Bill To</p><p className="text-sm font-bold text-gray-800">{selectedQuote.customer}</p></div>
@@ -221,14 +316,32 @@ export default function QuotePage() {
                 {/* Totals */}
                 <div className="flex justify-end">
                   <div className="w-[280px] space-y-2">
-                    <div className="flex justify-between text-sm"><span className="text-gray-600">Subtotal</span><span>₹{fmt(getSubtotal(selectedQuote))}</span></div>
-                    <div className="flex justify-between text-sm"><span className="text-gray-600">CGST (0.00%)</span><span>₹ 0.00</span></div>
-                    <div className="flex justify-between text-sm"><span className="text-gray-600">SGST (0.00%)</span><span>₹ 0.00</span></div>
-                    <div className="flex justify-between text-base font-bold border-t border-gray-300 pt-2"><span>Total</span><span className="text-indigo-600">₹{fmt(getSubtotal(selectedQuote))}</span></div>
+                    {(() => {
+                      const sub = selectedQuote.items.reduce((s, i) => s + i.amount, 0);
+                      const disc = selectedQuote.discountType === "%"
+                        ? sub * (Number(selectedQuote.discount) / 100)
+                        : Number(selectedQuote.discount);
+                      const taxable = sub - disc;
+                      const tax = taxable * (Number(selectedQuote.taxRate) / 100);
+                      const total = taxable + tax;
+                      return (
+                        <>
+                          <div className="flex justify-between text-sm"><span className="text-gray-600">Subtotal</span><span>₹{fmt(sub)}</span></div>
+                          {disc > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600">Discount</span><span className="text-red-600">-₹{fmt(disc)}</span></div>}
+                          {tax > 0 && (
+                            <>
+                              <div className="flex justify-between text-sm"><span className="text-gray-600">CGST ({(Number(selectedQuote.taxRate) / 2).toFixed(1)}%)</span><span>₹{fmt(tax / 2)}</span></div>
+                              <div className="flex justify-between text-sm"><span className="text-gray-600">SGST ({(Number(selectedQuote.taxRate) / 2).toFixed(1)}%)</span><span>₹{fmt(tax / 2)}</span></div>
+                            </>
+                          )}
+                          <div className="flex justify-between text-base font-bold border-t border-gray-300 pt-2"><span>Total</span><span className="text-indigo-600">₹{fmt(total)}</span></div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
 
-                <p className="text-sm text-gray-600 mt-4">Total In Words: <em>Indian Rupee {getSubtotal(selectedQuote) === 0 ? "Zero Only" : "Six Hundred Sixty Six Only"}</em></p>
+                <p className="text-sm text-gray-600 mt-4">Total In Words: <em>Indian Rupee {selectedQuote.items.reduce((s, i) => s + i.amount, 0) === 0 ? "Zero Only" : "Six Hundred Sixty Six Only"}</em></p>
 
                 <div className="flex justify-end mt-8"><div className="border border-gray-300 rounded px-8 py-4 text-center"><p className="text-xs text-gray-500">Authorized Signature</p></div></div>
               </div>
@@ -242,7 +355,7 @@ export default function QuotePage() {
               </div>
 
               <div className="grid grid-cols-4 gap-4 mb-6">
-                <div className="col-span-2"><label className="text-sm font-medium text-gray-700 mb-1 block">Customer *</label><select value={formCustomer} onChange={e => setFormCustomer(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"><option value="">-- Select Customer --</option>{customers.map(c => <option key={c}>{c}</option>)}</select></div>
+                <div className="col-span-2"><label className="text-sm font-medium text-gray-700 mb-1 block">Customer *</label><select value={formCustomer} onChange={e => setFormCustomer(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"><option value="">-- Select Customer --</option>{customerList.map(c => <option key={c}>{c}</option>)}</select></div>
                 <div className="col-span-2"><label className="text-sm font-medium text-gray-700 mb-1 block">Status *</label><select value={formStatus} onChange={e => setFormStatus(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"><option>Draft</option><option>Sent</option><option>Approved</option></select></div>
                 <div><label className="text-sm font-medium text-gray-700 mb-1 block">Issue Date *</label><input type="date" value={formDate} onChange={e => setFormDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" /></div>
                 <div><label className="text-sm font-medium text-gray-700 mb-1 block">Valid Until</label><input type="date" value={formExpiry} onChange={e => setFormExpiry(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" /></div>
@@ -254,7 +367,7 @@ export default function QuotePage() {
               <div className="mb-4">
                 <h3 className="text-sm font-bold text-gray-800 mb-2">Line Items</h3>
                 <div className="overflow-x-auto">
-                  <table className="w-full border border-gray-200">
+                  <table className="w-full border border-gray-200 min-w-[700px]">
                     <thead><tr className="bg-gray-50 border-b border-gray-200">
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Item</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Description</th>
@@ -300,7 +413,7 @@ export default function QuotePage() {
 
               <div className="flex justify-end gap-3">
                 <button onClick={() => setView("detail")} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50">Cancel</button>
-                <button onClick={handleSave} className="px-6 py-2 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a7e]">Save Quote</button>
+                <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-[#4caf85] text-white rounded-md text-sm font-medium hover:bg-[#3d9a7e] disabled:opacity-50">{saving ? "Saving..." : "Save Quote"}</button>
               </div>
             </div>
           )}

@@ -22,15 +22,6 @@ interface StockReportRow {
   totalPrice: number;
 }
 
-const sampleStock: StockReportRow[] = [
-  { id: "1", sNo: 1, branchName: "Only Coffee Vegetarian Restaurant", categoryName: "Cat", productCode: "1", productName: "Rice", uom: "KG", stockDate: "28/07/2026", openingStock: 0, stockIn: 50, stockOut: 10, billed: 8, totalStockOut: 18, closingStock: 32, stockUnitPrice: 40, totalPrice: 1280 },
-  { id: "2", sNo: 2, branchName: "Only Coffee Vegetarian Restaurant", categoryName: "Beverages", productCode: "2", productName: "Coffee Powder", uom: "KG", stockDate: "28/07/2026", openingStock: 20, stockIn: 30, stockOut: 5, billed: 12, totalStockOut: 17, closingStock: 33, stockUnitPrice: 200, totalPrice: 6600 },
-  { id: "3", sNo: 3, branchName: "Only Coffee Vegetarian Restaurant", categoryName: "Dairy", productCode: "3", productName: "Milk", uom: "L", stockDate: "28/07/2026", openingStock: 15, stockIn: 40, stockOut: 8, billed: 20, totalStockOut: 28, closingStock: 27, stockUnitPrice: 55, totalPrice: 1485 },
-  { id: "4", sNo: 4, branchName: "Only Coffee Vegetarian Restaurant", categoryName: "Snacks", productCode: "4", productName: "Bread", uom: "PCS", stockDate: "28/07/2026", openingStock: 30, stockIn: 20, stockOut: 0, billed: 15, totalStockOut: 15, closingStock: 35, stockUnitPrice: 25, totalPrice: 875 },
-  { id: "5", sNo: 5, branchName: "Only Coffee Vegetarian Restaurant", categoryName: "Beverages", productCode: "5", productName: "Tea Leaves", uom: "KG", stockDate: "28/07/2026", openingStock: 10, stockIn: 15, stockOut: 3, billed: 7, totalStockOut: 10, closingStock: 15, stockUnitPrice: 300, totalPrice: 4500 },
-  { id: "6", sNo: 6, branchName: "Only Coffee Vegetarian Restaurant", categoryName: "Cat", productCode: "6", productName: "Sugar", uom: "KG", stockDate: "28/07/2026", openingStock: 25, stockIn: 10, stockOut: 2, billed: 5, totalStockOut: 7, closingStock: 28, stockUnitPrice: 45, totalPrice: 1260 },
-];
-
 export default function StockReportPage() {
   const today = new Date().toISOString().split("T")[0];
   const [stockType, setStockType] = useState<"store" | "internal">("store");
@@ -78,9 +69,25 @@ export default function StockReportPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    setReportData(sampleStock);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (category) params.set("category", category);
+      if (product) params.set("product", product);
+      if (branch) params.set("branch", branch);
+      const res = await fetch(`/api/reports/stock?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as StockReportRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -238,7 +245,7 @@ export default function StockReportPage() {
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors">
             View Report
           </button>
@@ -250,7 +257,7 @@ export default function StockReportPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -343,7 +350,7 @@ export default function StockReportPage() {
 
         {/* Total Row */}
         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex justify-end">
-          <div className="flex items-center gap-8 pr-4">
+          <div className="flex flex-wrap items-center gap-8 pr-4">
             <span className="text-sm font-semibold text-gray-700">Total:</span>
             <span className="text-sm font-semibold text-gray-800 min-w-[80px] text-center">{totals.closingStock.toFixed(2)}</span>
             <span className="text-sm font-semibold text-gray-800 min-w-[80px] text-center">{totals.totalPrice.toFixed(2)}</span>

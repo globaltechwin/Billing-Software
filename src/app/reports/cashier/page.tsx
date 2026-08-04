@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { X } from "lucide-react";
 
 interface BillRow {
@@ -20,17 +20,6 @@ interface BillRow {
   name: string;
   createdBy: string;
 }
-
-const sampleBills: BillRow[] = [
-  { id: "1", billId: "B001", billNo: "1001", billDate: "28/07/2026", printDate: "28/07/2026 09:15", orderType: "Dine In", subTotal: 450.0, discount: 0, grandTotal: 477.0, paidAmount: 477.0, amountDue: 0, payModes: "Cash", mobile: "9876543210", name: "Ravi Kumar", createdBy: "admin" },
-  { id: "2", billId: "B002", billNo: "1002", billDate: "28/07/2026", printDate: "28/07/2026 10:30", orderType: "Take Away", subTotal: 320.0, discount: 20, grandTotal: 316.8, paidAmount: 316.8, amountDue: 0, payModes: "UPI", mobile: "9876543211", name: "Suresh Patel", createdBy: "admin" },
-  { id: "3", billId: "B003", billNo: "1003", billDate: "28/07/2026", printDate: "28/07/2026 12:00", orderType: "Dine In", subTotal: 780.0, discount: 0, grandTotal: 819.0, paidAmount: 500.0, amountDue: 319.0, payModes: "Card", mobile: "9876543212", name: "Anita Sharma", createdBy: "admin" },
-  { id: "4", billId: "B004", billNo: "1004", billDate: "28/07/2026", printDate: "28/07/2026 13:45", orderType: "Delivery", subTotal: 1200.0, discount: 50, grandTotal: 1219.5, paidAmount: 1219.5, amountDue: 0, payModes: "Cash", mobile: "9876543213", name: "Mohan Das", createdBy: "admin" },
-  { id: "5", billId: "B005", billNo: "1005", billDate: "28/07/2026", printDate: "28/07/2026 15:20", orderType: "Dine In", subTotal: 560.0, discount: 0, grandTotal: 588.0, paidAmount: 588.0, amountDue: 0, payModes: "UPI", mobile: "9876543214", name: "Priya Verma", createdBy: "admin" },
-  { id: "6", billId: "B006", billNo: "1006", billDate: "28/07/2026", printDate: "28/07/2026 17:00", orderType: "Take Away", subTotal: 250.0, discount: 0, grandTotal: 262.5, paidAmount: 262.5, amountDue: 0, payModes: "Cash", mobile: "9876543215", name: "Raj Singh", createdBy: "admin" },
-  { id: "7", billId: "B007", billNo: "1007", billDate: "28/07/2026", printDate: "28/07/2026 18:30", orderType: "Dine In", subTotal: 890.0, discount: 30, grandTotal: 902.55, paidAmount: 902.55, amountDue: 0, payModes: "Card", mobile: "9876543216", name: "Deepa Nair", createdBy: "admin" },
-  { id: "8", billId: "B008", billNo: "1008", billDate: "28/07/2026", printDate: "28/07/2026 19:45", orderType: "Delivery", subTotal: 1500.0, discount: 100, grandTotal: 1470.0, paidAmount: 1470.0, amountDue: 0, payModes: "UPI", mobile: "9876543217", name: "Vikram Rao", createdBy: "admin" },
-];
 
 function SummaryCard({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
@@ -66,6 +55,19 @@ export default function CashierReportPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [reportData, setReportData] = useState<BillRow[]>([]);
+
+  useEffect(() => {
+    fetch("/api/reports/cashier")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.rows)) {
+          setReportData(data.rows as BillRow[]);
+        }
+      })
+      .catch(() => {
+        setReportData([]);
+      });
+  }, []);
 
   const filteredData = useMemo(() => {
     let data = reportData;
@@ -225,7 +227,7 @@ export default function CashierReportPage() {
 
       {/* Bill List */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-6 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select

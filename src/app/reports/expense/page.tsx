@@ -17,15 +17,6 @@ interface ExpenseReportRow {
   expensesStatus: string;
 }
 
-const sampleExpenses: ExpenseReportRow[] = [
-  { id: "1", sNo: 1, receiptNo: "EXP001", vendorName: "Fresh Farms Suppliers", expenseAmount: 5000, expenseDescription: "Vegetables purchase", categoryName: "Raw Materials", cancelledAmount: 0, expenseDate: "28/07/2026", comments: "Weekly supply", expensesStatus: "Approved" },
-  { id: "2", sNo: 2, receiptNo: "EXP002", vendorName: "Metro Dairy Products", expenseAmount: 3200, expenseDescription: "Milk and dairy items", categoryName: "Raw Materials", cancelledAmount: 0, expenseDate: "28/07/2026", comments: "Daily supply", expensesStatus: "Approved" },
-  { id: "3", sNo: 3, receiptNo: "EXP003", vendorName: "Power Grid Electricity", expenseAmount: 8500, expenseDescription: "Monthly electricity bill", categoryName: "Utilities", cancelledAmount: 0, expenseDate: "27/07/2026", comments: "July bill", expensesStatus: "Approved" },
-  { id: "4", sNo: 4, receiptNo: "EXP004", vendorName: "Green Clean Services", expenseAmount: 2500, expenseDescription: "Kitchen cleaning service", categoryName: "Maintenance", cancelledAmount: 500, expenseDate: "27/07/2026", comments: "Partial cancellation", expensesStatus: "Partial" },
-  { id: "5", sNo: 5, receiptNo: "EXP005", vendorName: "Spice Garden Imports", expenseAmount: 12000, expenseDescription: "Spice bulk order", categoryName: "Raw Materials", cancelledAmount: 0, expenseDate: "26/07/2026", comments: "Monthly order", expensesStatus: "Approved" },
-  { id: "6", sNo: 6, receiptNo: "EXP006", vendorName: "Quick Print Solutions", expenseAmount: 1500, expenseDescription: "Receipt rolls and stationery", categoryName: "Office Supplies", cancelledAmount: 1500, expenseDate: "26/07/2026", comments: "Cancelled - duplicate", expensesStatus: "Cancelled" },
-];
-
 export default function ExpenseReportPage() {
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
@@ -65,9 +56,23 @@ export default function ExpenseReportPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    setReportData(sampleExpenses);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (vendor) params.set("vendor", vendor);
+      const res = await fetch(`/api/reports/expense?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as ExpenseReportRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -128,18 +133,16 @@ export default function ExpenseReportPage() {
               className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-[200px]"
             >
               <option value="">--Select Vendor--</option>
-              <option value="fresh-farms">Fresh Farms Suppliers</option>
-              <option value="metro-dairy">Metro Dairy Products</option>
-              <option value="power-grid">Power Grid Electricity</option>
-              <option value="green-clean">Green Clean Services</option>
-              <option value="spice-garden">Spice Garden Imports</option>
-              <option value="quick-print">Quick Print Solutions</option>
+              <option value="Fresh Foods Suppliers">Fresh Foods Suppliers</option>
+              <option value="Metro Wholesale">Metro Wholesale</option>
+              <option value="Green Valley Traders">Green Valley Traders</option>
+              <option value="Yuvanth">Yuvanth</option>
             </select>
           </div>
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors">
             View Report
           </button>
@@ -157,7 +160,7 @@ export default function ExpenseReportPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -246,7 +249,7 @@ export default function ExpenseReportPage() {
 
         {/* Total Row */}
         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-end gap-8 pr-4">
+          <div className="flex flex-wrap items-center justify-end gap-8 pr-4">
             <span className="text-sm font-semibold text-gray-700">Total:</span>
             <span className="text-sm font-semibold text-gray-800 min-w-[100px] text-center">{reportData.length > 0 ? totals.expenseAmount.toFixed(2) : "0.00"}</span>
             <span className="text-sm font-semibold text-gray-800 min-w-[100px] text-center">{reportData.length > 0 ? totals.cancelledAmount.toFixed(2) : "0.00"}</span>

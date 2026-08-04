@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { ChevronUp, Plus, Trash2, X } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { ChevronUp, Plus, Trash2 } from "lucide-react";
 
 interface LineItem {
   id: string; item: string; description: string; qty: number; rate: number; amount: number;
@@ -13,15 +13,7 @@ interface InvoiceRecord {
   items: LineItem[]; discount: number; discountType: string; taxRate: number; notes: string; terms: string;
 }
 
-const customers = ["1002-Omkar Tanti", "1001-Harikrishnan Arumugam", "1008-Jeewan Tanti", "1010-Manikandan E", "1003-Rajesh Kumar", "1004-Priya Sharma"];
-
-const sampleInvoices: InvoiceRecord[] = [
-  { id:"1",sNo:1,invoiceNo:"INV-0005",customerName:"1002-Omkar Tanti",status:"Paid",issueDate:"29/07/2026",dueDate:"29/08/2026",total:666,paid:666,customerId:"C001",items:[{id:"1",item:"abc",description:"3333",qty:2,rate:333,amount:666}],discount:0,discountType:"%",taxRate:0,notes:"",terms:"" },
-  { id:"2",sNo:2,invoiceNo:"INV-0004",customerName:"1001-Harikrishnan Arumugam",status:"Unpaid",issueDate:"28/07/2026",dueDate:"28/08/2026",total:1500,paid:0,customerId:"C002",items:[],discount:0,discountType:"%",taxRate:0,notes:"",terms:"" },
-  { id:"3",sNo:3,invoiceNo:"INV-0003",customerName:"1008-Jeewan Tanti",status:"Partial",issueDate:"27/07/2026",dueDate:"27/08/2026",total:3200,paid:1500,customerId:"C003",items:[],discount:0,discountType:"%",taxRate:0,notes:"",terms:"" },
-  { id:"4",sNo:4,invoiceNo:"INV-0002",customerName:"1003-Rajesh Kumar",status:"Paid",issueDate:"25/07/2026",dueDate:"25/08/2026",total:5000,paid:5000,customerId:"C004",items:[],discount:0,discountType:"%",taxRate:0,notes:"",terms:"" },
-  { id:"5",sNo:5,invoiceNo:"INV-0001",customerName:"1004-Priya Sharma",status:"Overdue",issueDate:"20/07/2026",dueDate:"20/07/2026",total:2100,paid:0,customerId:"C005",items:[],discount:0,discountType:"%",taxRate:0,notes:"",terms:"" },
-];
+const ENTRIES_PER_PAGE = 50;
 
 const fmt = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const statusColors: Record<string, string> = {
@@ -31,7 +23,9 @@ const statusColors: Record<string, string> = {
 };
 
 export default function InvoicePage() {
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>(sampleInvoices);
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [customerList, setCustomerList] = useState<string[]>([]);
   const [formCustomer, setFormCustomer] = useState("");
   const [formStatus, setFormStatus] = useState("");
   const [formDate, setFormDate] = useState("2026-07-29");
@@ -45,10 +39,37 @@ export default function InvoicePage() {
   const [editId, setEditId] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [entriesPerPage, setEntriesPerPage] = useState(50);
+  const [entriesPerPage] = useState(ENTRIES_PER_PAGE);
   const [currentPage, setCurrentPage] = useState(1);
   const [formCollapsed, setFormCollapsed] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", String(ENTRIES_PER_PAGE));
+    fetch(`/api/accounting/invoices?${params.toString()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          setInvoices(json.invoices.map((r: InvoiceRecord, i: number) => ({ ...r, sNo: i + 1 })));
+        }
+      })
+      .catch(e => console.error("Failed to fetch invoices:", e));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/customers?activeOnly=true&limit=100")
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          setCustomerList(json.customers.map((c: { customerCode: string; customerName: string }) => {
+            return c.customerCode ? `${c.customerCode}-${c.customerName}` : c.customerName;
+          }));
+        }
+      })
+      .catch(e => console.error("Failed to fetch customers:", e));
+  }, []);
 
   const subtotal = formItems.reduce((sum, i) => sum + i.amount, 0);
   const discountAmt = formDiscountType === "%" ? subtotal * (Number(formDiscount) / 100) : Number(formDiscount);
@@ -81,26 +102,62 @@ export default function InvoicePage() {
 
   const handleRemoveLine = (id: string) => { setFormItems(prev => prev.filter(i => i.id !== id)); };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formCustomer) { alert("Customer is required."); return; }
-    if (editId) {
-      setInvoices(prev => prev.map(inv => inv.id === editId ? {
-        ...inv, customerName: formCustomer, status: formStatus || "Draft", issueDate: formDate,
-        dueDate: formDueDate, total, paid: inv.paid, items: formItems,
-        discount: Number(formDiscount), discountType: formDiscountType, taxRate: Number(formTaxRate),
-        notes: formNotes, terms: formTerms,
-      } : inv));
-    } else {
-      const newId = String(invoices.length + 1);
-      setInvoices(prev => [...prev, {
-        id: newId, sNo: prev.length + 1, invoiceNo: `INV-${String(prev.length + 1).padStart(4, "0")}`,
-        customerName: formCustomer, status: formStatus || "Unpaid", issueDate: formDate, dueDate: formDueDate,
-        total, paid: 0, customerId: `C${String(prev.length + 1).padStart(3, "0")}`,
-        items: formItems, discount: Number(formDiscount), discountType: formDiscountType,
-        taxRate: Number(formTaxRate), notes: formNotes, terms: formTerms,
-      }]);
+    setSaving(true);
+    try {
+      const payload = {
+        customerName: formCustomer,
+        status: formStatus || "Unpaid",
+        invoiceDate: formDate,
+        dueDate: formDueDate || null,
+        discount: Number(formDiscount),
+        discountType: formDiscountType,
+        taxRate: Number(formTaxRate),
+        notes: formNotes,
+        terms: formTerms,
+        items: formItems.map(item => ({ item: item.item, description: item.description, qty: item.qty, rate: item.rate })),
+      };
+
+      let res;
+      if (editId) {
+        res = await fetch("/api/accounting/invoices", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editId, ...payload }),
+        });
+      } else {
+        res = await fetch("/api/accounting/invoices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to save invoice");
+      await refreshList();
+      handleClear();
+    } catch (e) {
+      console.error("Failed to save invoice:", e);
+      alert("Failed to save invoice.");
+    } finally {
+      setSaving(false);
     }
-    handleClear();
+  };
+
+  const refreshList = () => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("limit", String(ENTRIES_PER_PAGE));
+    return fetch(`/api/accounting/invoices?${params.toString()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          setInvoices(json.invoices.map((r: InvoiceRecord, i: number) => ({ ...r, sNo: i + 1 })));
+        }
+      })
+      .catch(e => console.error("Failed to refresh invoices:", e));
   };
 
   const handleClear = () => {
@@ -117,7 +174,21 @@ export default function InvoicePage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDelete = (id: string) => { if (confirm("Delete this invoice?")) setInvoices(prev => prev.filter(i => i.id !== id)); };
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this invoice?")) return;
+    try {
+      const res = await fetch(`/api/accounting/invoices?id=${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        refreshList();
+      } else {
+        alert(json.error || "Failed to delete invoice.");
+      }
+    } catch (e) {
+      console.error("Failed to delete invoice:", e);
+      alert("Failed to delete invoice.");
+    }
+  };
 
   return (
     <div className="flex flex-col h-full p-4 gap-4">
@@ -131,7 +202,7 @@ export default function InvoicePage() {
           <div className="px-6 py-6">
             {/* Row 1: Customer + Status */}
             <div className="grid grid-cols-2 gap-4 mb-5 max-w-4xl">
-              <div><label className="text-sm font-medium text-gray-700 mb-1 block">Customer *</label><select value={formCustomer} onChange={e => setFormCustomer(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"><option value="">-- Select Customer --</option>{customers.map(c => <option key={c}>{c}</option>)}</select></div>
+              <div><label className="text-sm font-medium text-gray-700 mb-1 block">Customer *</label><select value={formCustomer} onChange={e => setFormCustomer(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"><option value="">-- Select Customer --</option>{customerList.map(c => <option key={c}>{c}</option>)}</select></div>
               <div><label className="text-sm font-medium text-gray-700 mb-1 block">Status *</label><select value={formStatus} onChange={e => setFormStatus(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"><option value="">-- Select Status --</option><option>Draft</option><option>Unpaid</option><option>Partial</option><option>Paid</option><option>Overdue</option></select></div>
             </div>
             {/* Row 2: Issue Date + Due Date */}
@@ -149,7 +220,7 @@ export default function InvoicePage() {
             <div className="mb-4">
               <h3 className="text-sm font-bold text-gray-800 mb-2">Line Items</h3>
               <div className="overflow-x-auto">
-                <table className="w-full border border-gray-200">
+                <table className="w-full border border-gray-200 min-w-[700px]">
                   <thead><tr className="bg-gray-50 border-b border-gray-200">
                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Item</th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Description</th>
@@ -191,7 +262,7 @@ export default function InvoicePage() {
 
             {/* Buttons */}
             <div className="flex items-center gap-3">
-              <button onClick={handleSave} className="px-6 py-2 bg-[#4caf85] text-white rounded-full text-sm font-medium hover:bg-[#3d9a7e]">Save</button>
+              <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-[#4caf85] text-white rounded-full text-sm font-medium hover:bg-[#3d9a7e] disabled:opacity-50">{saving ? "Saving..." : "Save"}</button>
               <button onClick={handleClear} className="px-6 py-2 bg-purple-500 text-white rounded-full text-sm font-medium hover:bg-purple-600">Clear</button>
             </div>
           </div>
@@ -206,7 +277,7 @@ export default function InvoicePage() {
         </div>
         {!listCollapsed && (
           <>
-            <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+            <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
               <div className="flex items-center gap-2">
                 <button className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm hover:bg-gray-50">📄 PDF</button>
                 <button className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm hover:bg-gray-50">📊 Excel</button>
@@ -245,7 +316,7 @@ export default function InvoicePage() {
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-gray-600">Showing {filteredData.length>0?start+1:0} to {Math.min(start+entriesPerPage,filteredData.length)} of {filteredData.length} entries</span>
               <div className="flex items-center gap-1">
                 <button onClick={() => setCurrentPage(p => Math.max(1,p-1))} disabled={currentPage===1} className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50">Previous</button>

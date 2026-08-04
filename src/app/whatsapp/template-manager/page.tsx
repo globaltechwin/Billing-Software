@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Plus, RefreshCw, BarChart3, Pencil, Trash2, Send, X, Save } from "lucide-react";
 
 interface WATemplate {
-  id: string;
+  id: number;
   name: string;
   isDefault: boolean;
   language: string;
@@ -19,80 +19,15 @@ interface WATemplate {
   paramLabels: string[];
 }
 
-const defaultTemplate: WATemplate = {
-  id: "1",
-  name: "bill_notification1",
-  isDefault: true,
-  language: "en_US",
-  category: "UTILITY — transactional (bills, receipts, alerts)",
-  header: "",
-  body: "Hi {{1}}, your bill {{2}} of Rs.{{3}} on {{4}} is ready. View your e-bill here: {{5}}. Thank you for visiting us!",
-  footer: "",
-  params: 5,
-  status: "APPROVED",
-  lastSync: "18/05/2026 08:31",
-  sampleValues: ["John", "V00001", "500.00", "01/05/2026", "https://yourdomain.com/ebill/demo"],
-  paramLabels: ["Customer Name", "Bill Number", "Grand Total", "Bill Date", "E-Bill URL"],
-};
-
-const moreTemplates: WATemplate[] = [
-  {
-    id: "2",
-    name: "payment_reminder1",
-    isDefault: false,
-    language: "en_US",
-    category: "UTILITY — transactional (bills, receipts, alerts)",
-    header: "",
-    body: "Dear {{1}}, your payment of Rs.{{2}} for invoice {{3}} is due on {{4}}. Please pay at the earliest.",
-    footer: "Reply STOP to opt out",
-    params: 4,
-    status: "PENDING",
-    lastSync: "20/05/2026 10:15",
-    sampleValues: ["Rajesh", "1250.00", "INV-0045", "25/05/2026"],
-    paramLabels: ["Customer Name", "Amount", "Invoice Number", "Due Date"],
-  },
-  {
-    id: "3",
-    name: "order_confirm1",
-    isDefault: false,
-    language: "en_US",
-    category: "UTILITY — transactional (bills, receipts, alerts)",
-    header: "Order Confirmed",
-    body: "Hi {{1}}, your order {{2}} for Rs.{{3}} has been confirmed. Expected delivery: {{4}}.",
-    footer: "",
-    params: 4,
-    status: "APPROVED",
-    lastSync: "22/05/2026 14:30",
-    sampleValues: ["Suresh", "ORD-0102", "2300.00", "28/05/2026"],
-    paramLabels: ["Customer Name", "Order ID", "Total Amount", "Delivery Date"],
-  },
-  {
-    id: "4",
-    name: "promo_offer1",
-    isDefault: false,
-    language: "en_US",
-    category: "MARKETING — promotional (offers, discounts, campaigns)",
-    header: "Special Offer",
-    body: "Hi {{1}}, get {{2}}% off on your next purchase! Use code {{3}}. Valid until {{4}}.",
-    footer: "Reply STOP to opt out",
-    params: 4,
-    status: "REJECTED",
-    lastSync: "25/05/2026 09:00",
-    sampleValues: ["Amit", "15", "SAVE15", "30/06/2026"],
-    paramLabels: ["Customer Name", "Discount %", "Coupon Code", "Expiry Date"],
-  },
-];
-
-const allSampleTemplates = [defaultTemplate, ...moreTemplates];
-
 export default function TemplateManagerPage() {
-  const [templates, setTemplates] = useState<WATemplate[]>(allSampleTemplates);
+  const [templates, setTemplates] = useState<WATemplate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<WATemplate | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -103,6 +38,21 @@ export default function TemplateManagerPage() {
   const [formBody, setFormBody] = useState("");
   const [formFooter, setFormFooter] = useState("");
   const [formSampleValues, setFormSampleValues] = useState<string[]>(["", "", "", "", ""]);
+
+  useEffect(() => {
+    async function fetchTemplates() {
+      try {
+        const res = await fetch("/api/whatsapp/templates");
+        const data = await res.json();
+        setTemplates(data.templates || []);
+      } catch (e) {
+        console.error("Failed to fetch templates:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchTemplates();
+  }, []);
 
   const filteredData = useMemo(() => {
     let data = [...templates];
@@ -149,53 +99,7 @@ export default function TemplateManagerPage() {
     setShowModal(true);
   };
 
-  const handleSaveDraft = () => {
-    if (!formName.trim()) {
-      alert("Template name is required");
-      return;
-    }
-    if (editingTemplate) {
-      setTemplates((prev) =>
-        prev.map((t) =>
-          t.id === editingTemplate.id
-            ? {
-                ...t,
-                name: formName,
-                language: formLanguage === "English US" ? "en_US" : formLanguage,
-                isDefault: formIsDefault,
-                category: formCategory,
-                header: formHeader,
-                body: formBody,
-                footer: formFooter,
-                sampleValues: formSampleValues.filter((v) => v),
-                paramLabels: t.paramLabels,
-                status: "DRAFT" as const,
-              }
-            : t
-        )
-      );
-    } else {
-      const newTpl: WATemplate = {
-        id: String(Date.now()),
-        name: formName,
-        isDefault: formIsDefault,
-        language: formLanguage === "English US" ? "en_US" : formLanguage,
-        category: formCategory,
-        header: formHeader,
-        body: formBody,
-        footer: formFooter,
-        params: (formBody.match(/\{\{\d+\}\}/g) || []).length,
-        status: "DRAFT",
-        lastSync: "-",
-        sampleValues: formSampleValues.filter((v) => v),
-        paramLabels: Array((formBody.match(/\{\{\d+\}\}/g) || []).length).fill(""),
-      };
-      setTemplates((prev) => [...prev, newTpl]);
-    }
-    setShowModal(false);
-  };
-
-  const handleSubmitToMeta = () => {
+  const handleSaveDraft = async () => {
     if (!formName.trim()) {
       alert("Template name is required");
       return;
@@ -204,50 +108,96 @@ export default function TemplateManagerPage() {
       alert("Template body is required");
       return;
     }
-    if (editingTemplate) {
-      setTemplates((prev) =>
-        prev.map((t) =>
-          t.id === editingTemplate.id
-            ? {
-                ...t,
-                name: formName,
-                language: formLanguage === "English US" ? "en_US" : formLanguage,
-                isDefault: formIsDefault,
-                category: formCategory,
-                header: formHeader,
-                body: formBody,
-                footer: formFooter,
-                sampleValues: formSampleValues.filter((v) => v),
-                status: "PENDING" as const,
-                lastSync: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
-              }
-            : t
-        )
-      );
-    } else {
-      const newTpl: WATemplate = {
-        id: String(Date.now()),
+    try {
+      const res = await fetch("/api/whatsapp/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formName,
+          language: formLanguage === "English US" ? "en_US" : formLanguage,
+          isDefault: formIsDefault,
+          category: formCategory,
+          header: formHeader,
+          body: formBody,
+          footer: formFooter,
+          sampleValues: formSampleValues.filter((v) => v),
+          paramLabels: Array((formBody.match(/\{\{\d+\}\}/g) || []).length).fill(""),
+        }),
+      });
+      if (res.ok) {
+        setShowModal(false);
+        const data = await res.json();
+        setTemplates((prev) => [data.template, ...prev]);
+      }
+    } catch (e) {
+      console.error("Save failed:", e);
+    }
+  };
+
+  const handleSubmitToMeta = async () => {
+    if (!formName.trim()) {
+      alert("Template name is required");
+      return;
+    }
+    if (!formBody.trim()) {
+      alert("Template body is required");
+      return;
+    }
+    try {
+      const params = (formBody.match(/\{\{\d+\}\}/g) || []).length;
+      const payload: Record<string, unknown> = {
         name: formName,
-        isDefault: formIsDefault,
         language: formLanguage === "English US" ? "en_US" : formLanguage,
+        isDefault: formIsDefault,
         category: formCategory,
         header: formHeader,
         body: formBody,
         footer: formFooter,
-        params: (formBody.match(/\{\{\d+\}\}/g) || []).length,
-        status: "PENDING",
-        lastSync: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
         sampleValues: formSampleValues.filter((v) => v),
-        paramLabels: Array((formBody.match(/\{\{\d+\}\}/g) || []).length).fill(""),
+        paramLabels: Array(params).fill(""),
       };
-      setTemplates((prev) => [...prev, newTpl]);
+      if (editingTemplate) {
+        payload.id = editingTemplate.id;
+        payload.lastSyncAt = new Date().toISOString();
+        const res = await fetch("/api/whatsapp/templates", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTemplates((prev) =>
+            prev.map((t) => (t.id === editingTemplate.id ? data.template : t))
+          );
+        }
+      } else {
+        payload.status = "PENDING";
+        const res = await fetch("/api/whatsapp/templates", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTemplates((prev) => [data.template, ...prev]);
+        }
+      }
+      setShowModal(false);
+    } catch (e) {
+      console.error("Submit failed:", e);
     }
-    setShowModal(false);
   };
 
-  const handleDelete = (id: string) => {
-    setTemplates((prev) => prev.filter((t) => t.id !== id));
-    setDeleteConfirm(null);
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/whatsapp/templates?id=${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setTemplates((prev) => prev.filter((t) => String(t.id) !== id));
+        setDeleteConfirm(null);
+      }
+    } catch (e) {
+      console.error("Delete failed:", e);
+    }
   };
 
   const handleInsertParam = (param: string) => {
@@ -291,7 +241,7 @@ export default function TemplateManagerPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-800">WhatsApp Templates</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={openCreateModal}
             className="flex items-center gap-1.5 px-5 py-2 bg-[#4caf85] text-white rounded-lg text-sm font-medium hover:bg-[#3d9a7e] transition-colors"
@@ -324,7 +274,7 @@ export default function TemplateManagerPage() {
         </div>
 
         {/* Table Controls */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -428,7 +378,7 @@ export default function TemplateManagerPage() {
                           <Send size={15} />
                         </button>
                         <button
-                          onClick={() => setDeleteConfirm(row.id)}
+                          onClick={() => setDeleteConfirm(String(row.id))}
                           className="p-1 text-red-500 hover:text-red-700 rounded hover:bg-red-50"
                           title="Delete"
                         >
@@ -444,7 +394,7 @@ export default function TemplateManagerPage() {
         </div>
 
         {/* Pagination */}
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm text-gray-600">
             Showing {filteredData.length > 0 ? startIndex + 1 : 0} to{" "}
             {Math.min(startIndex + entriesPerPage, filteredData.length)} of{" "}
@@ -527,7 +477,7 @@ export default function TemplateManagerPage() {
               {/* Left: Form */}
               <div className="flex-1 px-6 py-5 flex flex-col gap-4">
                 {/* Template Name + Language + Default */}
-                <div className="flex items-end gap-4">
+                <div className="flex flex-wrap items-end gap-4">
                   <div className="flex-1">
                     <label className="text-sm font-medium text-gray-700 mb-1 block">Template Name *</label>
                     <input
@@ -594,7 +544,7 @@ export default function TemplateManagerPage() {
                   <label className="text-sm font-medium text-gray-700 mb-1 block">
                     Body * <span className="text-gray-400 font-normal">Use {"{{1}}"}, {"{{2}}"} ... for dynamic values</span>
                   </label>
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
                     <span className="text-xs text-gray-500">Insert param:</span>
                     {paramButtons.map((p) => (
                       <button
@@ -693,7 +643,7 @@ export default function TemplateManagerPage() {
             </div>
 
             {/* Footer Buttons */}
-            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
+            <div className="px-6 py-4 border-t border-gray-200 flex flex-wrap items-center justify-end gap-3 sticky bottom-0 bg-white">
               <button
                 onClick={() => setShowModal(false)}
                 className="px-5 py-2 border border-gray-300 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors"

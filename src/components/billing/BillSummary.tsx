@@ -1,21 +1,31 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 interface BillSummaryProps {
   total: number;
-  prevBillNo: string;
-  prevBillAmount: number;
   amountGiven: number;
   onAmountGivenChange: (val: number) => void;
 }
 
 export default function BillSummary({
   total,
-  prevBillNo,
-  prevBillAmount,
   amountGiven,
   onAmountGivenChange,
 }: BillSummaryProps) {
   const amountDue = total - amountGiven;
+  const [prevBill, setPrevBill] = useState<{ invoiceNumber: string; grandTotal: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/invoices")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.invoices && data.invoices.length > 0) {
+          setPrevBill(data.invoices[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   return (
     <div className="space-y-3">
@@ -51,10 +61,10 @@ export default function BillSummary({
         {/* Prev Bill */}
         <div className="flex-1 bg-white border border-gray-200 rounded-lg p-3 text-center">
           <p className="text-sm font-semibold text-gray-700 mb-1">
-            Prev. Bill: {prevBillNo}
+            Prev. Bill: {prevBill?.invoiceNumber || "N/A"}
           </p>
-          <p className="text-2xl font-bold text-orange-500">
-            {prevBillAmount.toFixed(2)}
+          <p className="text-2xl font-bold text-billora-primary">
+            {prevBill?.grandTotal ? Number(prevBill.grandTotal).toFixed(2) : "0.00"}
           </p>
         </div>
       </div>

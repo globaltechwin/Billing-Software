@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar, RefreshCw, ArrowDownCircle, ArrowUpCircle, Scale, List } from "lucide-react";
 
 interface RecentTransaction {
@@ -14,7 +14,13 @@ interface RecentTransaction {
   amount: number;
 }
 
-const sampleTransactions: RecentTransaction[] = [];
+interface DashboardData {
+  totalCashIn: number;
+  totalCashOut: number;
+  netCashFlow: number;
+  totalTransactions: number;
+  recentTransactions: RecentTransaction[];
+}
 
 const fmt = (v: number) =>
   v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -23,22 +29,45 @@ export default function CashDashboardPage() {
   const [fromDate, setFromDate] = useState("2026-07-01");
   const [toDate, setToDate] = useState("2026-07-29");
   const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<DashboardData>({
+    totalCashIn: 0,
+    totalCashOut: 0,
+    netCashFlow: 0,
+    totalTransactions: 0,
+    recentTransactions: [],
+  });
 
-  const totalCashIn = 0;
-  const totalCashOut = 0;
-  const netCashFlow = totalCashIn - totalCashOut;
-  const totalTransactions = 0;
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
+    fetch(`/api/cash-flow/dashboard?${params.toString()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) setData(json.data);
+      })
+      .catch(e => console.error("Failed to fetch dashboard data:", e));
+  }, [fromDate, toDate]);
 
   const handleRefresh = () => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 800);
+    const params = new URLSearchParams();
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
+    fetch(`/api/cash-flow/dashboard?${params.toString()}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) setData(json.data);
+      })
+      .catch(e => console.error("Failed to fetch dashboard data:", e))
+      .finally(() => setLoading(false));
   };
 
   return (
     <div className="flex flex-col h-full p-4 gap-4">
       {/* Date Range Filter */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-end gap-4">
+        <div className="flex flex-wrap items-end gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-gray-700">From Date</label>
             <div className="relative">
@@ -84,7 +113,7 @@ export default function CashDashboardPage() {
             </span>
             <span className="text-sm font-semibold text-gray-700">Total Cash In</span>
           </div>
-          <p className="text-2xl font-bold text-green-500">{fmt(totalCashIn)}</p>
+          <p className="text-2xl font-bold text-green-500">{fmt(data.totalCashIn)}</p>
         </div>
 
         {/* Total Cash Out */}
@@ -95,7 +124,7 @@ export default function CashDashboardPage() {
             </span>
             <span className="text-sm font-semibold text-gray-700">Total Cash Out</span>
           </div>
-          <p className="text-2xl font-bold text-red-500">{fmt(totalCashOut)}</p>
+          <p className="text-2xl font-bold text-red-500">{fmt(data.totalCashOut)}</p>
         </div>
 
         {/* Net Cash Flow */}
@@ -106,7 +135,7 @@ export default function CashDashboardPage() {
             </span>
             <span className="text-sm font-semibold text-gray-700">Net Cash Flow</span>
           </div>
-          <p className="text-2xl font-bold text-red-500">{fmt(netCashFlow)}</p>
+          <p className="text-2xl font-bold text-red-500">{fmt(data.netCashFlow)}</p>
         </div>
 
         {/* Transactions */}
@@ -117,7 +146,7 @@ export default function CashDashboardPage() {
             </span>
             <span className="text-sm font-semibold text-gray-700">Transactions</span>
           </div>
-          <p className="text-2xl font-bold text-blue-600">{totalTransactions}</p>
+          <p className="text-2xl font-bold text-blue-600">{data.totalTransactions}</p>
         </div>
       </div>
 
@@ -141,14 +170,14 @@ export default function CashDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {sampleTransactions.length === 0 ? (
+              {data.recentTransactions.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                     No transactions found.
                   </td>
                 </tr>
               ) : (
-                sampleTransactions.map((row) => (
+                data.recentTransactions.map((row) => (
                   <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-700">{row.date}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{row.type}</td>

@@ -17,15 +17,6 @@ interface ComplimentBillRow {
   billId1: string;
 }
 
-const sampleData: ComplimentBillRow[] = [
-  { id: "1", sNo: 1, billNo: "1001", billDate: "28/07/2026", subTotal: 1250.00, remarks: "VIP Guest", name: "Ravi Kumar", mobile: "9876543210", createdByBy: "admin", createdDate: "28/07/2026", billId1: "B001" },
-  { id: "2", sNo: 2, billNo: "1005", billDate: "27/07/2026", subTotal: 850.00, remarks: "Promotional", name: "Suresh Patel", mobile: "9876543211", createdByBy: "admin", createdDate: "27/07/2026", billId1: "B002" },
-  { id: "3", sNo: 3, billNo: "1012", billDate: "27/07/2026", subTotal: 2100.00, remarks: "Staff Compliment", name: "Anita Sharma", mobile: "9876543212", createdByBy: "manager1", createdDate: "27/07/2026", billId1: "B003" },
-  { id: "4", sNo: 4, billNo: "1018", billDate: "26/07/2026", subTotal: 450.00, remarks: "Customer Feedback Reward", name: "Mohan Das", mobile: "9876543213", createdByBy: "admin", createdDate: "26/07/2026", billId1: "B004" },
-  { id: "5", sNo: 5, billNo: "1023", billDate: "26/07/2026", subTotal: 3200.00, remarks: "Birthday Treat", name: "Priya Verma", mobile: "9876543214", createdByBy: "admin", createdDate: "26/07/2026", billId1: "B005" },
-  { id: "6", sNo: 6, billNo: "1030", billDate: "25/07/2026", subTotal: 675.00, remarks: "Loyalty Reward", name: "Raj Singh", mobile: "9876543215", createdByBy: "manager1", createdDate: "25/07/2026", billId1: "B006" },
-];
-
 export default function ComplimentBillReportPage() {
   const today = new Date().toISOString().split("T")[0];
   const [reportType, setReportType] = useState<"bill" | "item">("bill");
@@ -64,9 +55,22 @@ export default function ComplimentBillReportPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    setReportData(sampleData);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/reports/compliment-bill?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as ComplimentBillRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -148,7 +152,7 @@ export default function ComplimentBillReportPage() {
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors">
             View Report
           </button>
@@ -160,7 +164,7 @@ export default function ComplimentBillReportPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select

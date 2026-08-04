@@ -2,7 +2,17 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Search, X } from "lucide-react";
-import { poProducts, vendors, categories, POProduct, POItem } from "./data";
+import { categories, POProduct, POItem } from "./data";
+
+interface ApiVendor {
+  id: number;
+  vendorName: string;
+  mobileNumber: string;
+  contactPerson: string | null;
+  gstNumber: string | null;
+  email: string | null;
+  address: string | null;
+}
 
 export default function PORequestPage() {
   const [category, setCategory] = useState("All Categories");
@@ -17,7 +27,7 @@ export default function PORequestPage() {
   // Vendor panel
   const [vendorSearch, setVendorSearch] = useState("");
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
-  const [selectedVendor, setSelectedVendor] = useState<typeof vendors[0] | null>(null);
+  const [selectedVendor, setSelectedVendor] = useState<ApiVendor | null>(null);
   const [mobile, setMobile] = useState("");
   const [vendorName, setVendorName] = useState("");
   const [branch, setBranch] = useState("");
@@ -26,6 +36,14 @@ export default function PORequestPage() {
   const [deliveryDate, setDeliveryDate] = useState("");
   const [indentRef, setIndentRef] = useState("");
   const [remarks, setRemarks] = useState("");
+
+  // Vendors from API
+  const [vendorsList, setVendorsList] = useState<ApiVendor[]>([]);
+  const [vendorsLoading, setVendorsLoading] = useState(true);
+
+  // Products from API
+  const [productsList, setProductsList] = useState<POProduct[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
 
   const productDropdownRef = useRef<HTMLDivElement>(null);
   const vendorDropdownRef = useRef<HTMLDivElement>(null);
@@ -45,18 +63,52 @@ export default function PORequestPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // Fetch vendors from API
+  useEffect(() => {
+    fetch("/api/vendors")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) setVendorsList(data.vendors);
+      })
+      .catch(() => {})
+      .finally(() => setVendorsLoading(false));
+  }, []);
+
+  // Fetch products from API
+  useEffect(() => {
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.products) {
+          setProductsList(
+            data.products.map((p: Record<string, unknown>) => ({
+              id: String(p.id),
+              name: p.productName as string,
+              uom: p.unit as string,
+              vendor: "",
+              currentStock: Number(p.currentStock) || 0,
+              price: Number(p.purchasePrice) || 0,
+              taxRate: Number((p.gstMaster as Record<string, unknown>)?.totalPercentage) || 0,
+            }))
+          );
+        }
+      })
+      .catch(() => {})
+      .finally(() => setProductsLoading(false));
+  }, []);
+
   // Filter products
-  const filteredProducts = poProducts.filter(
+  const filteredProducts = productsList.filter(
     (p) =>
       p.name.toLowerCase().includes(productSearch.toLowerCase()) &&
       !items.some((i) => i.product.id === p.id)
   );
 
   // Filter vendors
-  const filteredVendors = vendors.filter(
+  const filteredVendors = vendorsList.filter(
     (v) =>
-      v.name.toLowerCase().includes(vendorSearch.toLowerCase()) ||
-      v.mobile.includes(vendorSearch)
+      v.vendorName.toLowerCase().includes(vendorSearch.toLowerCase()) ||
+      v.mobileNumber.includes(vendorSearch)
   );
 
   // Select product
@@ -112,17 +164,15 @@ export default function PORequestPage() {
   };
 
   // Select vendor
-  const handleVendorSelect = (vendor: typeof vendors[0]) => {
+  const handleVendorSelect = (vendor: ApiVendor) => {
     setSelectedVendor(vendor);
-    setVendorSearch(vendor.name);
-    setMobile(vendor.mobile);
-    setVendorName(vendor.name);
-    setBranch(vendor.branch);
+    setVendorSearch(vendor.vendorName);
+    setMobile(vendor.mobileNumber);
+    setVendorName(vendor.vendorName);
     setShowVendorDropdown(false);
   };
 
   // Totals
-  const totalItems = items.length;
   const totalQty = items.reduce((sum, i) => sum + i.reqQty, 0);
   const totalAmount = items.reduce((sum, i) => {
     const amt = i.product.price * i.reqQty;
@@ -130,19 +180,57 @@ export default function PORequestPage() {
     return sum + amt + tax;
   }, 0);
 
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
   // Save
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
     if (items.length === 0) return;
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      setItems([]);
-      setProductSearch("");
-      setSelectedProduct(null);
-      setReqQty("1");
-      setRemarks("");
-      setIndentRef("");
-    }, 2000);
+    if (!selectedVendor) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const body = {
+        vendorId: selectedVendor.id,
+        branchId: null,
+        expectedDelivery: deliveryDate || null,
+        notes: remarks || null,
+        items: items.map((item) => ({
+          productId: parseInt(item.product.id),
+          quantity: item.reqQty,
+          purchasePrice: item.product.price,
+          discount: 0,
+          gstPercentage: item.product.taxRate,
+          unit: item.product.uom,
+        })),
+      };
+      const res = await fetch("/api/purchase-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create purchase order");
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setItems([]);
+        setProductSearch("");
+        setSelectedProduct(null);
+        setReqQty("1");
+        setRemarks("");
+        setIndentRef("");
+        setSelectedVendor(null);
+        setVendorSearch("");
+        setMobile("");
+        setVendorName("");
+      }, 2000);
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Keyboard shortcuts
@@ -151,6 +239,9 @@ export default function PORequestPage() {
       if (e.key === "F1") {
         e.preventDefault();
         handleSave();
+      }
+      if (e.key === "Escape") {
+        setSaveError("");
       }
       if (e.key === "F2") {
         e.preventDefault();
@@ -162,16 +253,21 @@ export default function PORequestPage() {
   });
 
   return (
-    <div className="flex gap-4 p-4 h-full">
+    <div className="flex flex-col xl:flex-row gap-4 p-4 h-full">
       {/* Success Toast */}
       {showSuccess && (
         <div className="fixed top-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm font-medium">
           Purchase Order saved successfully!
         </div>
       )}
+      {saveError && (
+        <div className="fixed top-20 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm font-medium">
+          {saveError}
+        </div>
+      )}
 
       {/* Left Panel - Main Content */}
-      <div className="flex-[7] flex flex-col gap-4">
+      <div className="xl:flex-[7] flex flex-col gap-4">
         {/* Title Row */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-4 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-gray-800">Purchase Order Request</h1>
@@ -192,7 +288,7 @@ export default function PORequestPage() {
         {/* Indent No + Product Search Row */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-6 py-4 flex flex-col gap-4">
           {/* Indent No */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <label className="text-sm text-gray-700 font-medium whitespace-nowrap">Indent No.</label>
             <input
               type="text"
@@ -221,20 +317,26 @@ export default function PORequestPage() {
                 placeholder="Enter Product"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              {showProductDropdown && filteredProducts.length > 0 && (
+              {showProductDropdown && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-60 overflow-y-auto">
-                  {filteredProducts.map((product) => (
-                    <button
-                      key={product.id}
-                      onClick={() => handleProductSelect(product)}
-                      className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b border-gray-50 last:border-0"
-                    >
-                      <span className="text-gray-700">{product.name}</span>
-                      <span className="text-xs text-gray-400">
-                        {product.uom} | Stock: {product.currentStock} | ₹{product.price}
-                      </span>
-                    </button>
-                  ))}
+                  {productsLoading ? (
+                    <div className="px-4 py-3 text-sm text-gray-500">Loading products...</div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-gray-500">No products found. Add products in Product Master first.</div>
+                  ) : (
+                    filteredProducts.map((product) => (
+                      <button
+                        key={product.id}
+                        onClick={() => handleProductSelect(product)}
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b border-gray-50 last:border-0"
+                      >
+                        <span className="text-gray-700">{product.name}</span>
+                        <span className="text-xs text-gray-400">
+                          {product.uom} | Stock: {product.currentStock} | ₹{product.price}
+                        </span>
+                      </button>
+                    ))
+                  )}
                 </div>
               )}
             </div>
@@ -253,7 +355,7 @@ export default function PORequestPage() {
         {/* Items Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-1 flex flex-col">
           <div className="overflow-x-auto flex-1">
-            <table className="w-full">
+            <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="bg-[#3d9a7e] text-white">
                   <th className="px-4 py-3 text-left w-12 text-xs font-semibold">-</th>
@@ -334,7 +436,7 @@ export default function PORequestPage() {
       </div>
 
       {/* Right Panel - Vendor Details */}
-      <div className="flex-[3] bg-white rounded-xl shadow-sm border border-gray-200 p-5 h-fit">
+      <div className="xl:flex-[3] bg-white rounded-xl shadow-sm border border-gray-200 p-5 h-fit">
         <div className="space-y-4">
           {/* Vendor Search */}
           <div className="relative" ref={vendorDropdownRef}>
@@ -349,18 +451,24 @@ export default function PORequestPage() {
               placeholder="Type Vendor Name..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-            {showVendorDropdown && filteredVendors.length > 0 && (
+            {showVendorDropdown && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto">
-                {filteredVendors.map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => handleVendorSelect(v)}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
-                  >
-                    <span className="text-gray-700">{v.name}</span>
-                    <span className="text-xs text-gray-400 ml-2">{v.mobile}</span>
-                  </button>
-                ))}
+                {vendorsLoading ? (
+                  <div className="px-4 py-3 text-sm text-gray-500">Loading vendors...</div>
+                ) : filteredVendors.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-gray-500">No vendors found. Create vendors in Vendor Master first.</div>
+                ) : (
+                  filteredVendors.map((v) => (
+                    <button
+                      key={v.id}
+                      onClick={() => handleVendorSelect(v)}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                    >
+                      <span className="text-gray-700">{v.vendorName}</span>
+                      <span className="text-xs text-gray-400 ml-2">{v.mobileNumber}</span>
+                    </button>
+                  ))
+                )}
               </div>
             )}
           </div>
@@ -483,6 +591,40 @@ export default function PORequestPage() {
               <span className="text-sm font-semibold text-gray-700">Total</span>
               <span className="text-sm font-bold text-gray-800">₹{totalAmount.toFixed(2)}</span>
             </div>
+          </div>
+
+          {/* Save / Cancel Buttons */}
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={handleSave}
+              disabled={saving || items.length === 0 || !selectedVendor}
+              className="flex-1 px-4 py-2.5 bg-emerald-600 text-white rounded-md text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+            <button
+              onClick={() => {
+                setItems([]);
+                setProductSearch("");
+                setSelectedProduct(null);
+                setReqQty("1");
+                setRemarks("");
+                setIndentNo("");
+                setIndentRef("");
+                setSelectedVendor(null);
+                setVendorSearch("");
+                setMobile("");
+                setVendorName("");
+                setBranch("");
+                setTaxAmount("");
+                setPurchaseType("");
+                setDeliveryDate("");
+                setSaveError("");
+              }}
+              className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md text-sm font-semibold hover:bg-gray-300 transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>

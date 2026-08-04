@@ -25,6 +25,17 @@ export const productCategories = [
   "Electronics",
 ];
 
+export const categoryUomMap: Record<string, string[]> = {
+  Cat: ["KG", "Gm", "Ltr", "ML", "Pcs", "Nos", "Box", "Pack", "Set", "Dozen", "Sheet", "Ream"],
+  Food: ["KG", "Gm", "Ltr", "ML", "Pcs", "Nos", "Dozen", "Packet", "Slice", "Piece"],
+  Beverages: ["Ltr", "ML", "Pcs", "Nos", "Can", "Bottle", "Pack", "Glass"],
+  Desserts: ["Pcs", "Nos", "Slice", "Bowl", "Cup", "Pack", "Dozen"],
+  Starters: ["Pcs", "Nos", "Plate", "Bowl", "Pack", "Dozen"],
+  "Main Course": ["Pcs", "Nos", "Plate", "Bowl", "Pack", "Dozen", "Kg"],
+  Stationery: ["Pcs", "Nos", "Box", "Pack", "Sheet", "Ream", "Dozen", "Set", "Bundle"],
+  Electronics: ["Pcs", "Nos", "Box", "Set", "Unit", "Pack", "Pair"],
+};
+
 export const vendors = [
   "--Select Vendor--",
   "Fresh Foods Ltd",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import TouchPOSTopBar from "./TouchPOSTopBar";
 import POSCategories from "./POSCategories";
@@ -27,6 +27,13 @@ export default function TouchPOSPage() {
   const [selectedPayment, setSelectedPayment] = useState("CASH");
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerData | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
 
   const filteredProducts = useMemo(() => {
     let items = PRODUCTS;
@@ -113,7 +120,7 @@ export default function TouchPOSPage() {
 
   return (
     <div className="p-4 sm:p-5">
-      <div className="flex gap-4">
+      <div className="flex flex-col lg:flex-row gap-4">
         {/* LEFT SIDE — Products */}
         <div className="flex-1 min-w-0 space-y-3">
           {/* Top Bar */}
@@ -122,6 +129,7 @@ export default function TouchPOSPage() {
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               onFullscreen={handleFullscreen}
+              isFullscreen={isFullscreen}
               splitEnabled={splitEnabled}
               onSplitToggle={setSplitEnabled}
               onTableView={handleTableView}
@@ -146,7 +154,7 @@ export default function TouchPOSPage() {
         </div>
 
         {/* RIGHT SIDE — Cart & Payment */}
-        <div className="w-[340px] flex-shrink-0">
+        <div className="w-full lg:w-[340px] flex-shrink-0">
           <POSRightPanel
             cart={cart}
             total={total}

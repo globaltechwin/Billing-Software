@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronUp, ChevronDown, Download } from "lucide-react";
-import { sampleWalletTransactions, WalletTransaction, paymentModes } from "./data";
-import { sampleCustomers, Customer } from "../customer/data";
+import { useState, useEffect, useCallback } from "react";
+import { ChevronUp, ChevronDown, Download, Loader2 } from "lucide-react";
+import { WalletTransaction, paymentModes } from "./data";
+import { Customer } from "../customer/data";
 
 const inputClass =
   "w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
@@ -34,6 +34,7 @@ export default function WalletTopUpPage() {
   const [name, setName] = useState("");
   const [walletBalance, setWalletBalance] = useState(0);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
   const [paymentMode, setPaymentMode] = useState("");
   const [enterAmount, setEnterAmount] = useState("");
@@ -45,52 +46,83 @@ export default function WalletTopUpPage() {
   const [showAddMoney, setShowAddMoney] = useState(true);
   const [showBulkTopUp, setShowBulkTopUp] = useState(true);
 
-  const [transactions, setTransactions] = useState<WalletTransaction[]>(sampleWalletTransactions);
+  const [, setTransactions] = useState<WalletTransaction[]>([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/customers?limit=200&sortBy=customerName&sortOrder=asc")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.customers) {
+          const formatted = data.customers.map((c: Record<string, unknown>) => ({
+            ...c,
+            createdByName: (c.createdByUser as Record<string, unknown>)?.name || "",
+            updatedByName: (c.updatedByUser as Record<string, unknown>)?.name || "",
+          }));
+          setCustomers(formatted);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchWalletBalance = useCallback(async (customerId: number) => {
+    try {
+      const res = await fetch(`/api/wallet?customerId=${customerId}`);
+      const data = await res.json();
+      if (data.success && data.wallet) {
+        setWalletBalance(parseFloat(data.wallet.balance) || 0);
+      }
+    } catch {
+      setWalletBalance(0);
+    }
+  }, []);
+
+  const applyCustomer = (match: Customer) => {
+    setSelectedCustomer(match);
+    setCardNumber(match.customerCode || "");
+    setMobile(match.phone);
+    setEmployeeId(match.customerCode || "");
+    setName(match.customerName);
+    fetchWalletBalance(match.id);
+  };
+
+  const clearMatch = () => {
+    setSelectedCustomer(null);
+    setMobile("");
+    setEmployeeId("");
+    setName("");
+    setWalletBalance(0);
+  };
 
   const handleCardNumberChange = (value: string) => {
     setCardNumber(value);
-    const match = sampleCustomers.find(
-      (c) => c.loyaltyCardNumber === value || c.id === value
+    const match = customers.find(
+      (c) => (c.customerCode || "").toLowerCase() === value.toLowerCase() || c.id === Number(value)
     );
-    if (match) {
-      setSelectedCustomer(match);
-      setMobile(match.mobile);
-      setEmployeeId(match.employeeId);
-      setName(match.customerName);
-      setWalletBalance(match.wallet);
-    } else {
-      setSelectedCustomer(null);
-      setMobile("");
-      setEmployeeId("");
-      setName("");
-      setWalletBalance(0);
-    }
+    if (match) applyCustomer(match);
+    else clearMatch();
   };
 
   const handleMobileChange = (value: string) => {
     setMobile(value);
-    const match = sampleCustomers.find((c) => c.mobile === value);
+    const match = customers.find((c) => c.phone === value);
     if (match) {
-      setSelectedCustomer(match);
-      setCardNumber(match.loyaltyCardNumber || match.id);
-      setEmployeeId(match.employeeId);
-      setName(match.customerName);
-      setWalletBalance(match.wallet);
-    }
+      applyCustomer(match);
+      setCardNumber(match.customerCode || "");
+    } else clearMatch();
   };
 
   const handleEmployeeIdChange = (value: string) => {
     setEmployeeId(value);
-    const match = sampleCustomers.find((c) => c.employeeId === value);
+    const match = customers.find(
+      (c) => c.customerName.toLowerCase() === value.toLowerCase()
+    );
     if (match) {
-      setSelectedCustomer(match);
-      setCardNumber(match.loyaltyCardNumber || match.id);
-      setMobile(match.mobile);
-      setName(match.customerName);
-      setWalletBalance(match.wallet);
-    }
+      applyCustomer(match);
+      setCardNumber(match.customerCode || "");
+    } else clearMatch();
   };
 
   const handleQuickAmount = (amount: number) => {
@@ -98,55 +130,60 @@ export default function WalletTopUpPage() {
     setEnterAmount((current + amount).toFixed(2));
   };
 
-  const handleAddMoney = () => {
+  const handleAddMoney = async () => {
     const amount = parseFloat(enterAmount);
     if (!amount || amount <= 0) return;
     if (!paymentMode || paymentMode === "-- Payment Mode --") return;
+    if (!selectedCustomer) return;
 
-    const newBalance = walletBalance + amount;
-    setWalletBalance(newBalance);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/wallet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: selectedCustomer.id,
+          amount: amount.toFixed(2),
+          paymentMode,
+          cardNumber,
+          employeeId,
+          customerName: name,
+          mobile,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to add money");
 
-    const transaction: WalletTransaction = {
-      id: Date.now().toString(),
-      cardNumber,
-      employeeId,
-      customerName: name,
-      mobile,
-      amount,
-      paymentMode,
-      transactionDate: new Date().toLocaleString("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-      }),
-      status: "Completed",
-    };
-    setTransactions((prev) => [transaction, ...prev]);
+      const newBalance = parseFloat(data.wallet.balance);
+      setWalletBalance(newBalance);
 
-    setSuccessMessage(`₹${amount.toFixed(2)} added to wallet successfully! New balance: ₹${newBalance.toFixed(2)}`);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+      const transaction: WalletTransaction = {
+        id: data.transaction.id.toString(),
+        cardNumber: data.transaction.cardNumber || "",
+        employeeId: data.transaction.employeeId || "",
+        customerName: data.transaction.customerName || "",
+        mobile: data.transaction.mobile || "",
+        amount,
+        paymentMode: data.transaction.paymentMode,
+        transactionDate: data.transaction.transactionDate,
+        status: data.transaction.status,
+      };
+      setTransactions((prev) => [transaction, ...prev]);
 
-    setEnterAmount("");
-    setPaymentMode("");
+      setSuccessMessage(`₹${amount.toFixed(2)} added to wallet successfully! New balance: ₹${newBalance.toFixed(2)}`);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+
+      setEnterAmount("");
+      setPaymentMode("");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to add money");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleClearTopUp = () => {
-    setEnterAmount("");
-    setPaymentMode("");
-  };
-
-  const handleClearAll = () => {
-    setCardNumber("");
-    setMobile("");
-    setEmployeeId("");
-    setName("");
-    setWalletBalance(0);
-    setSelectedCustomer(null);
     setEnterAmount("");
     setPaymentMode("");
   };
@@ -164,7 +201,7 @@ export default function WalletTopUpPage() {
         </div>
       )}
 
-      <div className="flex gap-4">
+      <div className="flex flex-col xl:flex-row gap-4">
         {/* Wallet Top Up - Left */}
         <div className="flex-1">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -222,7 +259,7 @@ export default function WalletTopUpPage() {
         </div>
 
         {/* Add money to Wallet - Right */}
-        <div className="w-[480px] flex-shrink-0">
+        <div className="w-full xl:w-[480px] flex-shrink-0">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="bg-[#f2f5f9] px-6 py-3 flex items-center justify-between border-b border-gray-200">
               <h2 className="text-base font-semibold text-gray-800">Add money to Wallet</h2>
@@ -263,7 +300,7 @@ export default function WalletTopUpPage() {
                   />
                 </FormField>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   {[50, 100, 200, 500].map((amt) => (
                     <button
                       key={amt}
@@ -275,11 +312,13 @@ export default function WalletTopUpPage() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-3 pt-2">
+                <div className="flex flex-wrap items-center gap-3 pt-2">
                   <button
                     onClick={handleAddMoney}
-                    className="px-6 py-2 bg-emerald-500 text-white rounded-md text-sm font-medium hover:bg-emerald-600 transition-colors"
+                    disabled={saving}
+                    className="px-6 py-2 bg-emerald-500 text-white rounded-md text-sm font-medium hover:bg-emerald-600 transition-colors flex items-center gap-2 disabled:opacity-50"
                   >
+                    {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                     Add money to Wallet
                   </button>
                   <button
@@ -311,12 +350,12 @@ export default function WalletTopUpPage() {
         </div>
         {showBulkTopUp && (
           <div className="p-6 space-y-4">
-            <div className="flex items-center gap-6">
+            <div className="flex flex-wrap items-center gap-6">
               <FormField label="Payment Mode" required>
                 <select
                   value={bulkPaymentMode}
                   onChange={(e) => setBulkPaymentMode(e.target.value)}
-                  className="w-[320px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full max-w-[320px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   {paymentModes.map((mode) => (
                     <option key={mode} value={mode === "-- Payment Mode --" ? "" : mode}>
@@ -334,7 +373,7 @@ export default function WalletTopUpPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex flex-wrap items-center gap-6">
               <FormField label="Excel File" required>
                 <div className="flex items-center">
                   <input
@@ -356,7 +395,7 @@ export default function WalletTopUpPage() {
                 </div>
               </FormField>
 
-              <div className="flex items-center gap-3 pt-6">
+              <div className="flex flex-wrap items-center gap-3 pt-6">
                 <button className="px-6 py-2 bg-emerald-500 text-white rounded-md text-sm font-medium hover:bg-emerald-600 transition-colors">
                   Upload
                 </button>

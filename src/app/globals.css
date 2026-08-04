@@ -8,6 +8,7 @@
   --billora-bg-dark: #2a0e0e;
   --billora-bg-darker: #1a0808;
   --billora-card-dark: #3d1616;
+  --billora-nav-bg: #0f172a;
   --billora-text-muted: #888888;
   --billora-accent: #f07850;
   --billora-warm: #b83a2a;
@@ -21,6 +22,7 @@
   --color-billora-bg-dark: var(--billora-bg-dark);
   --color-billora-bg-darker: var(--billora-bg-darker);
   --color-billora-card-dark: var(--billora-card-dark);
+  --color-billora-nav-bg: var(--billora-nav-bg);
   --color-billora-accent: var(--billora-accent);
   --color-billora-warm: var(--billora-warm);
   --font-sans: var(--font-geist-sans);
@@ -56,20 +58,21 @@ body {
 }
 
 .btn-signin {
-  background: linear-gradient(135deg, #f07050 0%, #e05a3a 40%, #c94025 100%);
+  background: linear-gradient(135deg, var(--billora-accent) 0%, var(--billora-primary) 40%, var(--billora-primary-dark) 100%);
   transition: all 0.25s ease;
-  box-shadow: 0 4px 14px rgba(224, 90, 58, 0.35);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--billora-primary) 35%, transparent);
 }
 
 .btn-signin:hover {
-  background: linear-gradient(135deg, #f58060 0%, #e85a3a 40%, #d04528 100%);
-  box-shadow: 0 6px 20px rgba(224, 90, 58, 0.45);
+  background: linear-gradient(135deg, var(--billora-accent) 0%, var(--billora-primary) 40%, var(--billora-primary-dark) 100%);
+  filter: brightness(1.1);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--billora-primary) 45%, transparent);
   transform: translateY(-1px);
 }
 
 .btn-signin:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(224, 90, 58, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--billora-primary) 30%, transparent);
 }
 
 .btn-signin:disabled {
@@ -112,18 +115,18 @@ body {
 .input-field:focus {
   border-color: var(--billora-primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(224, 90, 58, 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--billora-primary) 10%, transparent);
   background: #fff;
 }
 
 .new-badge {
-  background: linear-gradient(135deg, #f07050 0%, #e05a3a 100%);
-  box-shadow: 0 2px 8px rgba(224, 90, 58, 0.3);
+  background: linear-gradient(135deg, var(--billora-accent) 0%, var(--billora-primary) 100%);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--billora-primary) 30%, transparent);
 }
 
 .brand-icon {
-  background: linear-gradient(135deg, #e05a3a 0%, #c94025 100%);
-  box-shadow: 0 4px 12px rgba(224, 90, 58, 0.3);
+  background: linear-gradient(135deg, var(--billora-primary) 0%, var(--billora-primary-dark) 100%);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--billora-primary) 30%, transparent);
 }
 
 .right-panel {
@@ -183,4 +186,171 @@ nav::-webkit-scrollbar-thumb {
 
 nav::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.35);
+}
+
+/* Print styles — only show the invoice print area */
+@media print {
+  body > *:not(.print-invoice-area) {
+    display: none !important;
+  }
+  .print-invoice-area {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: white;
+    z-index: 99999;
+    padding: 0;
+    margin: 0;
+  }
+  .print-invoice-area > * {
+    margin: 0 auto;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* ============================================================
+   Responsive app-wide helpers
+   (only active on small screens — desktop layout is untouched)
+   ============================================================ */
+
+/* Prevent horizontal page overflow while keeping inner tables scrollable */
+html,
+body {
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+}
+
+/* Smooth touch scrolling for horizontal table areas */
+.overflow-x-auto,
+.overflow-auto {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* Never let media (QR codes, barcodes, logos) blow out the viewport */
+img,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Collapse dense grids on small screens */
+@media (max-width: 767px) {
+  .grid-cols-2 {
+    grid-template-columns: 1fr;
+  }
+  .grid-cols-3,
+  .grid-cols-4,
+  .grid-cols-5,
+  .grid-cols-6,
+  .grid-cols-7,
+  .grid-cols-8 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 380px) {
+  .grid-cols-3,
+  .grid-cols-4,
+  .grid-cols-5,
+  .grid-cols-6,
+  .grid-cols-7,
+  .grid-cols-8 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Fix modal overflow: centering that never clips the top on small screens */
+@media (max-width: 640px) {
+  .fixed.inset-0.flex.items-center.justify-center {
+    align-items: flex-start;
+    overflow-y: auto;
+    padding: 1rem;
+    -webkit-overflow-scrolling: touch;
+  }
+  .fixed.inset-0.flex.items-center.justify-center > * {
+    margin: auto;
+    max-height: none;
+  }
+}
+
+/* Prevent iOS input zoom by keeping a readable input size on phones */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Sticky first column helper for wide tables */
+.table-sticky-first thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+.table-sticky-first tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background-color: #fff;
+}
+
+/* Responsive card grids used on dashboards */
+@media (max-width: 1279px) {
+  .stat-grid-8 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .stat-grid-8 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 380px) {
+  .stat-grid-8 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Let justify-between rows (toolbars, pagination, table controls) wrap
+   when they no longer fit on one line — only on small screens. */
+@media (max-width: 767px) {
+  .flex.items-center.justify-between {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
+
+/* Fixed-width form inputs should never overflow the viewport on phones */
+@media (max-width: 640px) {
+  input[class*="w-["],
+  select[class*="w-["],
+  textarea[class*="w-["] {
+    max-width: 100% !important;
+    min-width: 0;
+  }
+}
+
+/* Two-column flex layouts collapse to a single column on tablets/phones.
+   Right side panels stack below the main content and take full width. */
+@media (max-width: 1023px) {
+  .flex:has(> .flex-shrink-0[class*="w-["]) {
+    flex-wrap: wrap;
+  }
+  .flex-shrink-0[class*="w-["] {
+    width: 100% !important;
+    flex-basis: 100%;
+  }
 }

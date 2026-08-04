@@ -1,70 +1,200 @@
 "use client";
 
-import { useState } from "react";
-import { Maximize2, Settings, X } from "lucide-react";
-import { sampleStockOuts, departments, StockOutRecord } from "./data";
+import { useState, useEffect } from "react";
+import { Maximize2, Settings, X, Loader2 } from "lucide-react";
+import { StockOutRecord } from "./data";
+
+const stockOutTypes = [
+  "PRODUCTION",
+  "DAMAGE",
+  "ADJUSTMENT",
+  "BRANCH_TRANSFER",
+  "OTHER",
+];
+
+const statusList = ["Pending", "Completed", "Cancelled"];
 
 export default function StockOutListPage() {
-  const [reportType, setReportType] = useState<"bill" | "item" | "consolidation">("bill");
-  const [startDate, setStartDate] = useState("28/07/2026");
-  const [endDate, setEndDate] = useState("28/07/2026");
-  const [branch, setBranch] = useState("");
-  const [department, setDepartment] = useState("");
-  const [branchOut, setBranchOut] = useState("");
+  const [startDate, setStartDate] = useState("30/07/2026");
+  const [endDate, setEndDate] = useState("30/07/2026");
+  const [stockOutTypeFilter, setStockOutTypeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
-  const [filteredData, setFilteredData] = useState<StockOutRecord[]>(sampleStockOuts);
+  const [stockOuts, setStockOuts] = useState<StockOutRecord[]>([]);
+  const [filteredData, setFilteredData] = useState<StockOutRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const branchList = ["Main Branch", "Second Branch"];
+  const fetchStockOuts = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/stock-outs");
+      const data = await res.json();
+      if (data.success && data.stockOuts) {
+        const mapped: StockOutRecord[] = data.stockOuts.map(
+          (r: Record<string, unknown>, index: number) => {
+            const items = (r.items as Record<string, unknown>[]) || [];
+            const totalQty = items.reduce(
+              (sum: number, item: Record<string, unknown>) =>
+                sum + Number(item.quantity || 0),
+              0
+            );
+            const totalAmt = items.reduce(
+              (sum: number, item: Record<string, unknown>) =>
+                sum + Number(item.amount || 0),
+              0
+            );
+            const createdBy = (r.createdByUser as Record<string, string>)?.name || "";
+            return {
+              id: String(r.id),
+              sNo: index + 1,
+              stockOutNo: r.stockOutNumber as string,
+              date: new Date(r.stockOutDate as string).toLocaleDateString("en-IN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }),
+              stockOutType: r.stockOutType as string,
+              referenceNumber: (r.referenceNumber as string) || "-",
+              totalItems: items.length,
+              totalQuantity: totalQty,
+              totalAmount: totalAmt,
+              remarks: (r.notes as string) || "-",
+              status: mapStatus(r.status as string),
+              createdBy,
+              createdDate: new Date(r.createdAt as string).toLocaleDateString("en-IN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }),
+            };
+          }
+        );
+        setStockOuts(mapped);
+        setFilteredData(mapped);
+      } else {
+        setError(data.error || "Failed to load stock out records");
+      }
+    } catch (err) {
+      setError(
+        "Failed to load stock out records: " +
+          (err instanceof Error ? err.message : String(err))
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchStockOuts();
+  }, []);
+
+  // Map status to display status
+  const mapStatus = (status: string): StockOutRecord["status"] => {
+    switch (status) {
+      case "COMPLETED":
+        return "Completed";
+      case "CANCELLED":
+        return "Cancelled";
+      case "PENDING":
+      default:
+        return "Pending";
+    }
+  };
+
+  // Map stock out type to display label
+  const mapStockOutType = (type: string) => {
+    switch (type) {
+      case "PRODUCTION": return "Production";
+      case "DAMAGE": return "Damage";
+      case "ADJUSTMENT": return "Adjustment";
+      case "BRANCH_TRANSFER": return "Branch Transfer";
+      case "OTHER": return "Other";
+      default: return type;
+    }
+  };
+
+  // Parse DD/MM/YYYY to Date
+  const parseDate = (dateStr: string): Date => {
+    const [d, m, y] = dateStr.split("/").map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  // Handle view report
   const handleViewReport = () => {
-    let result = [...sampleStockOuts];
+    let result = [...stockOuts];
     if (startDate) {
-      result = result.filter((r) => r.createdDate >= startDate);
+      const start = parseDate(startDate);
+      result = result.filter((r) => parseDate(r.date) >= start);
     }
     if (endDate) {
-      result = result.filter((r) => r.createdDate <= endDate);
+      const end = parseDate(endDate);
+      result = result.filter((r) => parseDate(r.date) <= end);
     }
-    if (branch) {
-      result = result.filter((r) => r.branchOutName === branch);
+    if (stockOutTypeFilter) {
+      result = result.filter((r) => r.stockOutType === stockOutTypeFilter);
     }
-    if (department) {
-      result = result.filter((r) => r.deptName === department);
-    }
-    if (branchOut) {
-      result = result.filter((r) => r.branchOutName === branchOut);
+    if (statusFilter) {
+      result = result.filter((r) => r.status === statusFilter);
     }
     setFilteredData(result);
     setCurrentPage(1);
   };
 
+  // Handle clear
   const handleClear = () => {
-    setReportType("bill");
-    setStartDate("28/07/2026");
-    setEndDate("28/07/2026");
-    setBranch("");
-    setDepartment("");
-    setBranchOut("");
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, "0");
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const yyyy = today.getFullYear();
+    setStartDate(`${dd}/${mm}/${yyyy}`);
+    setEndDate(`${dd}/${mm}/${yyyy}`);
+    setStockOutTypeFilter("");
+    setStatusFilter("");
     setSearchQuery("");
-    setFilteredData(sampleStockOuts);
+    setFilteredData(stockOuts);
     setCurrentPage(1);
   };
 
+  // Search filter
   const searchFilteredData = searchQuery
     ? filteredData.filter(
         (r) =>
-          r.grnNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.deptName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.branchOutName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.stockOutNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.stockOutType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.referenceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.createdBy.toLowerCase().includes(searchQuery.toLowerCase()) ||
           r.remarks.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : filteredData;
 
+  // Pagination
   const totalPages = Math.ceil(searchFilteredData.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
-  const paginatedData = searchFilteredData.slice(startIndex, startIndex + entriesPerPage);
+  const paginatedData = searchFilteredData.slice(
+    startIndex,
+    startIndex + entriesPerPage
+  );
 
+  // Status badge color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Completed":
+        return "bg-emerald-100 text-emerald-700";
+      case "Pending":
+        return "bg-amber-100 text-amber-700";
+      case "Cancelled":
+        return "bg-red-100 text-red-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  // Format currency
   const formatCurrency = (amount: number) => amount.toFixed(2);
 
   return (
@@ -89,42 +219,8 @@ export default function StockOutListPage() {
 
         {/* Filter Content */}
         <div className="px-6 pt-6 pb-12 space-y-5">
-          {/* Row 1: Report Type + Dates + Branch */}
+          {/* Row 1: Dates */}
           <div className="flex items-center gap-6 flex-wrap">
-            <div className="flex items-center gap-4">
-              <label className="text-sm text-gray-700 font-medium">Report Type</label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="radio"
-                  name="reportType"
-                  checked={reportType === "bill"}
-                  onChange={() => setReportType("bill")}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="text-sm text-gray-700">Bill</span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="radio"
-                  name="reportType"
-                  checked={reportType === "item"}
-                  onChange={() => setReportType("item")}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="text-sm text-gray-700">Item</span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="radio"
-                  name="reportType"
-                  checked={reportType === "consolidation"}
-                  onChange={() => setReportType("consolidation")}
-                  className="w-4 h-4 text-blue-600"
-                />
-                <span className="text-sm text-gray-700">Consolidation</span>
-              </label>
-            </div>
-
             <div className="flex items-center gap-3">
               <label className="text-sm text-gray-700 font-medium whitespace-nowrap">
                 Start Date<span className="text-red-500">*</span>
@@ -154,48 +250,34 @@ export default function StockOutListPage() {
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-
-            <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 font-medium whitespace-nowrap">Branch</label>
-              <select
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">--Select Branch--</option>
-                {branchList.map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-            </div>
           </div>
 
-          {/* Row 2: Department + Branch Out + Buttons */}
-          <div className="flex items-center gap-6">
+          {/* Row 2: Stock Out Type + Status + Buttons */}
+          <div className="flex items-center gap-6 flex-wrap">
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 font-medium whitespace-nowrap">Department</label>
+              <label className="text-sm text-gray-700 font-medium whitespace-nowrap">Stock Out Type</label>
               <select
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
+                value={stockOutTypeFilter}
+                onChange={(e) => setStockOutTypeFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">--Select Department--</option>
-                {departments.map((d) => (
-                  <option key={d} value={d}>{d}</option>
+                <option value="">--Select Type--</option>
+                {stockOutTypes.map((t) => (
+                  <option key={t} value={t}>{mapStockOutType(t)}</option>
                 ))}
               </select>
             </div>
 
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700 font-medium whitespace-nowrap">Branch Out</label>
+              <label className="text-sm text-gray-700 font-medium whitespace-nowrap">Status</label>
               <select
-                value={branchOut}
-                onChange={(e) => setBranchOut(e.target.value)}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                <option value="">--Select Branch--</option>
-                {branchList.map((b) => (
-                  <option key={b} value={b}>{b}</option>
+                <option value="">--Select Status--</option>
+                {statusList.map((s) => (
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
             </div>
@@ -221,7 +303,7 @@ export default function StockOutListPage() {
       {/* Bottom Panel - Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {/* Table Controls */}
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200 flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Show</span>
@@ -266,26 +348,42 @@ export default function StockOutListPage() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1200px]">
             <thead>
               <tr className="bg-[#3d9a7e] text-white">
                 <th className="px-4 py-3 text-left text-xs font-semibold">S.NO</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">GRN NO.</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">GRN DATE</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">DEPT. NAME</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">BRANCH OUT NAME</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">STOCK OUT NO.</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">DATE</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">TYPE</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">REF. NUMBER</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold">NO. OF PRODUCTS</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">TAX AMOUNT</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">GRAND TOTAL</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">REMARKS</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">TOTAL QTY</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">TOTAL AMOUNT</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">STATUS</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">CREATED BY</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold">CREATED DATE</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold">EDIT / PRINT</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold">ACTIONS</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedData.length === 0 ? (
+              {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan={12} className="px-4 py-12 text-center text-sm text-gray-500">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading...
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={12} className="px-4 py-8 text-center text-sm text-red-500">
+                    {error}
+                  </td>
+                </tr>
+              ) : paginatedData.length === 0 ? (
+                <tr>
+                  <td colSpan={12} className="px-4 py-8 text-center text-sm text-gray-500">
                     No data available in table
                   </td>
                 </tr>
@@ -296,22 +394,29 @@ export default function StockOutListPage() {
                     className="border-b border-gray-100 hover:bg-gray-50"
                   >
                     <td className="px-4 py-3 text-sm text-gray-700">{record.sNo}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700 font-medium">{record.grnNo}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{record.grnDate}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{record.deptName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{record.branchOutName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{record.noOfProducts}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{formatCurrency(record.taxAmount)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{formatCurrency(record.grandTotal)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{record.remarks}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700 font-medium">{record.stockOutNo}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{record.date}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{mapStockOutType(record.stockOutType)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{record.referenceNumber}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{record.totalItems}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{record.totalQuantity}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{formatCurrency(record.totalAmount)}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}
+                      >
+                        {record.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{record.createdBy}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{record.createdDate}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button className="text-blue-600 hover:text-blue-800 text-xs font-medium">
                           Edit
                         </button>
-                        <span className="text-gray-300">/</span>
-                        <button className="text-blue-600 hover:text-blue-800 text-xs font-medium">
+                        <span className="text-gray-300">|</span>
+                        <button className="text-gray-600 hover:text-gray-800 text-xs font-medium">
                           Print
                         </button>
                       </div>
@@ -325,22 +430,33 @@ export default function StockOutListPage() {
 
         {/* Table Footer */}
         <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <span className="text-sm text-gray-600">Total:</span>
             <div className="flex gap-8">
               <span className="text-sm font-semibold text-gray-700">
-                {formatCurrency(searchFilteredData.reduce((sum, r) => sum + r.taxAmount, 0))}
+                {searchFilteredData.reduce(
+                  (sum, r) => sum + r.totalQuantity,
+                  0
+                )}
               </span>
               <span className="text-sm font-semibold text-gray-700">
-                {formatCurrency(searchFilteredData.reduce((sum, r) => sum + r.grandTotal, 0))}
+                {formatCurrency(
+                  searchFilteredData.reduce(
+                    (sum, r) => sum + r.totalAmount,
+                    0
+                  )
+                )}
               </span>
             </div>
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-sm text-gray-600">
               Showing {searchFilteredData.length > 0 ? startIndex + 1 : 0} to{" "}
-              {Math.min(startIndex + entriesPerPage, searchFilteredData.length)} of{" "}
-              {searchFilteredData.length} entries
+              {Math.min(
+                startIndex + entriesPerPage,
+                searchFilteredData.length
+              )}{" "}
+              of {searchFilteredData.length} entries
             </span>
             <div className="flex items-center gap-1">
               <button
@@ -351,7 +467,9 @@ export default function StockOutListPage() {
                 Previous
               </button>
               <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() =>
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }
                 disabled={currentPage === totalPages || totalPages === 0}
                 className="px-3 py-1 border border-gray-300 rounded text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >

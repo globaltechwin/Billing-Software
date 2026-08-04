@@ -1,9 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { X } from "lucide-react";
-import { sampleExpenseCategories } from "@/components/expense-category/data";
-import { sampleVendors } from "@/components/vendor/data";
+import { useState, useEffect, useMemo } from "react";
 
 interface ExpenseRow {
   id: string;
@@ -20,27 +17,42 @@ interface ExpenseRow {
   createdDate: string;
 }
 
-const sampleExpenses: ExpenseRow[] = [
-  { id: "1", sNo: 1, expenseNo: "EXP-1001", categoryName: "Salary", expenseDate: "28/07/2026", description: "Monthly staff salary", amount: 45000.00, vendorName: "", invoiceNo: "", comments: "July 2026 salary", createdBy: "admin", createdDate: "28/07/2026" },
-  { id: "2", sNo: 2, expenseNo: "EXP-1002", categoryName: "Petrol", expenseDate: "28/07/2026", description: "Delivery vehicle fuel", amount: 2500.00, vendorName: "Rajesh kumar", invoiceNo: "INV-201", comments: "Weekly fuel", createdBy: "admin", createdDate: "28/07/2026" },
-  { id: "3", sNo: 3, expenseNo: "EXP-1003", categoryName: "Local Purchase", expenseDate: "27/07/2026", description: "Office supplies purchase", amount: 1800.00, vendorName: "Arasu", invoiceNo: "INV-202", comments: "Stationery items", createdBy: "manager1", createdDate: "27/07/2026" },
-  { id: "4", sNo: 4, expenseNo: "EXP-1004", categoryName: "Salary", expenseDate: "27/07/2026", description: "Part-time staff payment", amount: 12000.00, vendorName: "", invoiceNo: "", comments: "Part-time wages", createdBy: "admin", createdDate: "27/07/2026" },
-  { id: "5", sNo: 5, expenseNo: "EXP-1005", categoryName: "Petrol", expenseDate: "26/07/2026", description: "Generator fuel", amount: 3200.00, vendorName: "MadhuAshwath", invoiceNo: "INV-203", comments: "Generator running", createdBy: "admin", createdDate: "26/07/2026" },
-  { id: "6", sNo: 6, expenseNo: "EXP-1006", categoryName: "Local Purchase", expenseDate: "26/07/2026", description: "Kitchen cleaning supplies", amount: 950.00, vendorName: "Abdul", invoiceNo: "INV-204", comments: "Cleaning items", createdBy: "manager1", createdDate: "26/07/2026" },
-];
+interface CategoryOption {
+  id: string;
+  categoryName: string;
+}
 
-function downloadCsv(headers: string[], rows: (string | number)[][], filename: string) {
-  const lines = [headers.join(",")];
-  rows.forEach((row) => lines.push(row.map((v) => `"${v}"`).join(",")));
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+interface VendorOption {
+  id: string;
+  vendorName: string;
+}
+
+function formatDisplayDate(value: string | Date): string {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+function mapExpenses(expenses: Record<string, unknown>[]): ExpenseRow[] {
+  return expenses
+    .map((e) => ({
+      id: String(e.id),
+      sNo: 0,
+      expenseNo: String(e.expenseNumber || ""),
+      categoryName: String(e.categoryName || ""),
+      expenseDate: formatDisplayDate(String(e.expenseDate || "")),
+      description: String(e.description || ""),
+      amount: Number(e.amount || 0),
+      vendorName: String(e.vendorName || ""),
+      invoiceNo: String(e.vendorInvoiceNo || ""),
+      comments: String(e.comments || ""),
+      createdBy: String(e.createdBy || ""),
+      createdDate: formatDisplayDate(String(e.createdDate || "")),
+    }))
+    .map((r, i) => ({ ...r, sNo: i + 1 }));
 }
 
 export default function ExpensesPage() {
@@ -54,17 +66,57 @@ export default function ExpensesPage() {
   const [comments, setComments] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [reportData, setReportData] = useState<ExpenseRow[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const [searchFromDate, setSearchFromDate] = useState(today);
   const [searchToDate, setSearchToDate] = useState(today);
   const [searchCategory, setSearchCategory] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
-  const [reportData, setReportData] = useState<ExpenseRow[]>([]);
+
+  useEffect(() => {
+    fetch("/api/expense-categories")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.categories) {
+          setCategories(
+            data.categories.map((c: { id: number; categoryName: string }) => ({
+              id: String(c.id),
+              categoryName: c.categoryName,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/vendors?activeOnly=true&limit=1000")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.vendors) {
+          setVendors(
+            data.vendors.map((v: { id: number; vendorName: string }) => ({
+              id: String(v.id),
+              vendorName: v.vendorName,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredData = useMemo(() => {
     let data = reportData;
-    if (searchCategory) data = data.filter((r) => r.categoryName === searchCategory);
+    if (searchCategory) {
+      const catName = categories.find((c) => c.id === searchCategory)?.categoryName;
+      if (catName) data = data.filter((r) => r.categoryName === catName);
+    }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       data = data.filter(
@@ -78,13 +130,11 @@ export default function ExpensesPage() {
       );
     }
     return data;
-  }, [reportData, searchCategory, searchQuery]);
+  }, [reportData, searchCategory, searchQuery, categories]);
 
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
   const paginatedData = filteredData.slice(startIndex, startIndex + entriesPerPage);
-
-  const totalAmount = useMemo(() => filteredData.reduce((sum, r) => sum + r.amount, 0), [filteredData]);
 
   const resetForm = () => {
     setExpenseCategory("");
@@ -97,45 +147,79 @@ export default function ExpensesPage() {
     setEditingId(null);
   };
 
-  const handleSave = () => {
+  const fetchExpenses = async (fromDate: string, toDate: string, categoryId: string) => {
+    try {
+      setLoadingList(true);
+      const params = new URLSearchParams();
+      if (fromDate) params.set("fromDate", fromDate);
+      if (toDate) params.set("toDate", toDate);
+      if (categoryId) params.set("categoryId", categoryId);
+      const res = await fetch(`/api/expenses?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load expenses");
+      setReportData(mapExpenses(data.expenses || []));
+      setCurrentPage(1);
+    } catch {
+      alert("Failed to load expenses");
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  useEffect(() => {
+    fetch(`/api/expenses?fromDate=${today}&toDate=${today}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.expenses) {
+          setReportData(mapExpenses(data.expenses));
+          setCurrentPage(1);
+        }
+      })
+      .catch(() => {});
+  }, [today]);
+
+  const handleSave = async () => {
     if (!expenseCategory || !expenseDate || !description || !amount) {
       alert("Please fill all required fields");
       return;
     }
-    const catName = sampleExpenseCategories.find((c) => c.id === expenseCategory)?.categoryName || "";
-    const vendorName = sampleVendors.find((v) => v.id === vendor)?.vendorName || "";
-
-    if (editingId) {
-      setReportData((prev) =>
-        prev.map((r) =>
-          r.id === editingId
-            ? { ...r, categoryName: catName, expenseDate, description, amount: parseFloat(amount), vendorName, invoiceNo: vendorInvoiceNo, comments }
-            : r
-        )
-      );
-    } else {
-      const newExpense: ExpenseRow = {
-        id: String(Date.now()),
-        sNo: reportData.length + 1,
-        expenseNo: `EXP-${1000 + reportData.length + 1}`,
-        categoryName: catName,
-        expenseDate,
-        description,
-        amount: parseFloat(amount),
-        vendorName,
-        invoiceNo: vendorInvoiceNo,
-        comments,
-        createdBy: "admin",
-        createdDate: today,
-      };
-      setReportData((prev) => [newExpense, ...prev]);
+    if (Number(amount) < 0) {
+      alert("Amount must be a positive number");
+      return;
     }
-    resetForm();
+    setSaving(true);
+
+    const body: Record<string, unknown> = {
+      expenseCategoryId: parseInt(expenseCategory, 10),
+      expenseDate,
+      description,
+      amount: parseFloat(amount),
+      vendorInvoiceNo,
+      comments,
+    };
+    if (vendor) body.vendorId = parseInt(vendor, 10);
+    if (editingId) body.id = parseInt(editingId, 10);
+
+    try {
+      const res = await fetch("/api/expenses", {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save expense");
+      resetForm();
+      fetchExpenses(searchFromDate, searchToDate, searchCategory);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to save expense");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleEdit = (row: ExpenseRow) => {
-    const cat = sampleExpenseCategories.find((c) => c.categoryName === row.categoryName);
-    const ven = sampleVendors.find((v) => v.vendorName === row.vendorName);
+    const cat = categories.find((c) => c.categoryName === row.categoryName);
+    const ven = vendors.find((v) => v.vendorName === row.vendorName);
     setEditingId(row.id);
     setExpenseCategory(cat?.id || "");
     setExpenseDate(row.expenseDate.split("/").reverse().join("-"));
@@ -146,36 +230,20 @@ export default function ExpensesPage() {
     setComments(row.comments);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this expense?")) return;
-    setReportData((prev) => prev.filter((r) => r.id !== id));
-  };
-
-  const handleClear = () => {
-    resetForm();
-    setSearchFromDate(today);
-    setSearchToDate(today);
-    setSearchCategory("");
-    setSearchQuery("");
-    setCurrentPage(1);
+    try {
+      const res = await fetch(`/api/expenses?id=${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete expense");
+      fetchExpenses(searchFromDate, searchToDate, searchCategory);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to delete expense");
+    }
   };
 
   const handleSearch = () => {
-    let data = sampleExpenses;
-    if (searchCategory) data = data.filter((r) => {
-      const cat = sampleExpenseCategories.find((c) => c.id === searchCategory);
-      return cat && r.categoryName === cat.categoryName;
-    });
-    setReportData(data);
-    setCurrentPage(1);
-  };
-
-  const handleExportExcel = () => {
-    if (filteredData.length === 0) return;
-    const headers = ["S.NO", "EXPENSE NO", "CATEGORY NAME", "EXPENSE DATE", "DESCRIPTION", "AMOUNT", "VENDOR NAME", "INVOICE NO", "COMMENTS", "CREATED BY", "CREATED DATE"];
-    const rows = filteredData.map((r) => [r.sNo, r.expenseNo, r.categoryName, r.expenseDate, r.description, r.amount.toFixed(2), r.vendorName, r.invoiceNo, r.comments, r.createdBy, r.createdDate]);
-    rows.push(["", "", "", "", "Total:", totalAmount.toFixed(2), "", "", "", "", ""]);
-    downloadCsv(headers, rows, `Expenses-${searchFromDate.replace(/\//g, "-")}.csv`);
+    fetchExpenses(searchFromDate, searchToDate, searchCategory);
   };
 
   return (
@@ -190,7 +258,7 @@ export default function ExpensesPage() {
         </div>
 
         <div className="px-6 py-5 flex flex-col gap-4 max-w-3xl">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="text-sm font-medium text-gray-700 w-40 text-right">Expense Category *</label>
             <select
               value={expenseCategory}
@@ -198,13 +266,13 @@ export default function ExpensesPage() {
               className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">--Select Expense Category--</option>
-              {sampleExpenseCategories.map((c) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.categoryName}</option>
               ))}
             </select>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="text-sm font-medium text-gray-700 w-40 text-right">Expense Date*</label>
             <input
               type="date"
@@ -214,7 +282,7 @@ export default function ExpensesPage() {
             />
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="text-sm font-medium text-gray-700 w-40 text-right">Description*</label>
             <input
               type="text"
@@ -224,7 +292,7 @@ export default function ExpensesPage() {
             />
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="text-sm font-medium text-gray-700 w-40 text-right">Amount*</label>
             <input
               type="number"
@@ -236,7 +304,7 @@ export default function ExpensesPage() {
             />
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="text-sm font-medium text-gray-700 w-40 text-right">Vendor</label>
             <select
               value={vendor}
@@ -244,13 +312,13 @@ export default function ExpensesPage() {
               className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">--Select Vendor--</option>
-              {sampleVendors.map((v) => (
+              {vendors.map((v) => (
                 <option key={v.id} value={v.id}>{v.vendorName}</option>
               ))}
             </select>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <label className="text-sm font-medium text-gray-700 w-40 text-right">Vendor Invoice No</label>
             <input
               type="text"
@@ -260,7 +328,7 @@ export default function ExpensesPage() {
             />
           </div>
 
-          <div className="flex items-start gap-4">
+          <div className="flex flex-wrap items-start gap-4">
             <label className="text-sm font-medium text-gray-700 w-40 text-right pt-1">Comments (500 max) :</label>
             <textarea
               value={comments}
@@ -270,8 +338,8 @@ export default function ExpensesPage() {
             />
           </div>
 
-          <div className="flex items-center gap-3 pl-40">
-            <button onClick={handleSave} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors">
+          <div className="flex flex-wrap items-center gap-3 pl-0 sm:pl-40">
+            <button onClick={handleSave} disabled={saving} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors disabled:opacity-50">
               {editingId ? "Update" : "Save"}
             </button>
             <button onClick={resetForm} className="px-6 py-2 bg-teal-500 text-white rounded-md text-sm font-medium hover:bg-teal-600 transition-colors">
@@ -280,7 +348,7 @@ export default function ExpensesPage() {
             <button onClick={handleSearch} className="px-6 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 transition-colors">
               Search
             </button>
-            <button onClick={() => window.print()} className="px-6 py-2 bg-orange-400 text-white rounded-md text-sm font-medium hover:bg-orange-500 transition-colors">
+            <button onClick={() => window.print()} className="px-6 py-2 bg-billora-primary text-white rounded-md text-sm font-medium hover:bg-billora-primary-dark transition-colors">
               Print Summary
             </button>
           </div>
@@ -319,7 +387,7 @@ export default function ExpensesPage() {
               className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-[180px]"
             >
               <option value="">All</option>
-              {sampleExpenseCategories.map((c) => (
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.categoryName}</option>
               ))}
             </select>
@@ -339,7 +407,7 @@ export default function ExpensesPage() {
           </button>
         </div>
 
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
@@ -385,7 +453,13 @@ export default function ExpensesPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedData.length === 0 ? (
+              {loadingList ? (
+                <tr>
+                  <td colSpan={12} className="px-4 py-8 text-center text-sm text-gray-500">
+                    Loading...
+                  </td>
+                </tr>
+              ) : paginatedData.length === 0 ? (
                 <tr>
                   <td colSpan={12} className="px-4 py-8 text-center text-sm text-gray-500">
                     No data available in table
@@ -419,7 +493,7 @@ export default function ExpensesPage() {
           </table>
         </div>
 
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm text-gray-600">
             Showing {filteredData.length > 0 ? startIndex + 1 : 0} to{" "}
             {Math.min(startIndex + entriesPerPage, filteredData.length)} of{" "}

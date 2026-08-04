@@ -17,15 +17,6 @@ interface CancelledBillRow {
   cancelledDate: string;
 }
 
-const sampleData: CancelledBillRow[] = [
-  { id: "1", sNo: 1, billNo: "1001", billDate: "28/07/2026", grandTotal: 1250.00, payMode: "Cash", name: "Ravi Kumar", mobile: "9876543210", remarks: "Customer changed mind", cancelledBy: "admin", cancelledDate: "28/07/2026" },
-  { id: "2", sNo: 2, billNo: "1005", billDate: "27/07/2026", grandTotal: 850.00, payMode: "UPI", name: "Suresh Patel", mobile: "9876543211", remarks: "Wrong order", cancelledBy: "admin", cancelledDate: "27/07/2026" },
-  { id: "3", sNo: 3, billNo: "1012", billDate: "27/07/2026", grandTotal: 2100.00, payMode: "Card", name: "Anita Sharma", mobile: "9876543212", remarks: "Duplicate entry", cancelledBy: "manager1", cancelledDate: "27/07/2026" },
-  { id: "4", sNo: 4, billNo: "1018", billDate: "26/07/2026", grandTotal: 450.00, payMode: "Cash", name: "Mohan Das", mobile: "9876543213", remarks: "Item not available", cancelledBy: "admin", cancelledDate: "26/07/2026" },
-  { id: "5", sNo: 5, billNo: "1023", billDate: "26/07/2026", grandTotal: 3200.00, payMode: "UPI", name: "Priya Verma", mobile: "9876543214", remarks: "System error", cancelledBy: "admin", cancelledDate: "26/07/2026" },
-  { id: "6", sNo: 6, billNo: "1030", billDate: "25/07/2026", grandTotal: 675.00, payMode: "Cash", name: "Raj Singh", mobile: "9876543215", remarks: "Cancelled by customer", cancelledBy: "manager1", cancelledDate: "25/07/2026" },
-];
-
 export default function CancelledBillsPage() {
   const today = new Date().toISOString().split("T")[0];
   const [reportType, setReportType] = useState<"bill" | "item">("bill");
@@ -65,9 +56,22 @@ export default function CancelledBillsPage() {
     return t;
   }, [reportData]);
 
-  const handleViewReport = () => {
-    setReportData(sampleData);
+  const handleViewReport = async () => {
     setCurrentPage(1);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      const res = await fetch(`/api/reports/cancelled-bills?${params.toString()}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows)) {
+        setReportData(data.rows as CancelledBillRow[]);
+      } else {
+        setReportData([]);
+      }
+    } catch {
+      setReportData([]);
+    }
   };
 
   const handleClear = () => {
@@ -149,7 +153,7 @@ export default function CancelledBillsPage() {
         </div>
 
         {/* Buttons */}
-        <div className="px-6 pb-4 flex items-center gap-3">
+        <div className="px-6 pb-4 flex flex-wrap items-center gap-3">
           <button onClick={handleViewReport} className="px-6 py-2 bg-green-500 text-white rounded-md text-sm font-medium hover:bg-green-600 transition-colors">
             View Report
           </button>
@@ -161,7 +165,7 @@ export default function CancelledBillsPage() {
 
       {/* Table Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200">
+        <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">Show</span>
             <select
