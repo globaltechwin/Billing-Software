@@ -15,12 +15,20 @@ interface UserRow {
   roleId: number;
   roleName: string;
   companyId: number;
+  tableTypes: string[] | null;
+  productCategories: string[] | null;
+  orderTypes: string[] | null;
   createdAt: string;
 }
 
 interface Role {
   id: number;
   name: string;
+}
+
+interface CompanyRow {
+  id: number;
+  companyName: string;
 }
 
 interface MenuAccessItem {
@@ -30,9 +38,9 @@ interface MenuAccessItem {
   checked: boolean;
 }
 
-const TABLE_TYPES = ["Main Hall", "First Floor", "DINING AREA", "AC Hall", "Terrace", "Take Away", "Home Delivery"];
-const PRODUCT_CATEGORIES = ["Cat", "CatEgory TWO", "CAT ONE", "Food", "Beverages"];
-const ORDER_TYPES = ["Sales", "Dine In", "Take Away", "Home Delivery"];
+const TABLE_TYPES_DEFAULT = ["Main Hall", "First Floor", "DINING AREA", "AC Hall", "Terrace", "Take Away", "Home Delivery"];
+const PRODUCT_CATEGORIES_DEFAULT = ["Food", "Beverages", "Desserts", "Starters", "Main Course"];
+const ORDER_TYPES_DEFAULT = ["Dine In", "Take Away", "Delivery"];
 
 export default function UserCreationPage() {
   const [firstName, setFirstName] = useState("");
@@ -49,6 +57,9 @@ export default function UserCreationPage() {
   const [selectedTableTypes, setSelectedTableTypes] = useState<string[]>([]);
   const [selectedProductCategories, setSelectedProductCategories] = useState<string[]>([]);
   const [selectedOrderTypes, setSelectedOrderTypes] = useState<string[]>([]);
+  const [availableTableTypes, setAvailableTableTypes] = useState<string[]>(TABLE_TYPES_DEFAULT);
+  const [availableProductCategories, setAvailableProductCategories] = useState<string[]>(PRODUCT_CATEGORIES_DEFAULT);
+  const [availableOrderTypes, setAvailableOrderTypes] = useState<string[]>(ORDER_TYPES_DEFAULT);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showProfileImage, setShowProfileImage] = useState(false);
   const [profileImageUrl, setProfileImageUrl] = useState("");
@@ -57,6 +68,11 @@ export default function UserCreationPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [roles, setRoles] = useState<Role[]>([]);
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [isNewCompany, setIsNewCompany] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [currentCompanyId, setCurrentCompanyId] = useState<number | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -104,6 +120,22 @@ export default function UserCreationPage() {
       })
       .catch(() => console.error("Failed to fetch users"));
 
+    // Fetch admin's own companies (Owner/superadmin only — company admins always use their own company)
+    fetch("/api/company/settings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data.success) return;
+        setIsOwner(data.role === "Owner");
+        setCurrentCompanyId(data.settings.id);
+        setCompanies([{ id: data.settings.id, companyName: data.settings.companyName }]);
+        setSelectedCompanyId(String(data.settings.id));
+        const s = data.settings;
+        if (Array.isArray(s.tableTypes) && s.tableTypes.length > 0) setAvailableTableTypes(s.tableTypes);
+        if (Array.isArray(s.productCategories) && s.productCategories.length > 0) setAvailableProductCategories(s.productCategories);
+        if (Array.isArray(s.orderTypes) && s.orderTypes.length > 0) setAvailableOrderTypes(s.orderTypes);
+      })
+      .catch(() => {});
+
     return () => {
       cancelled = true;
     };
@@ -138,6 +170,8 @@ export default function UserCreationPage() {
     setSelectedTableTypes([]);
     setSelectedProductCategories([]);
     setSelectedOrderTypes([]);
+    setSelectedCompanyId(companies.length === 1 ? String(companies[0].id) : "");
+    setIsNewCompany(false);
     setEditingId(null);
     setShowProfileImage(false);
     setProfileImageUrl("");
@@ -149,7 +183,12 @@ export default function UserCreationPage() {
       return;
     }
 
-    if (!editingId && !companyName.trim()) {
+    if (!editingId && !isNewCompany && !selectedCompanyId) {
+      alert("Please select a company");
+      return;
+    }
+
+    if (!editingId && isNewCompany && !companyName.trim()) {
       alert("Company name is required");
       return;
     }
@@ -161,11 +200,22 @@ export default function UserCreationPage() {
     };
 
     if (password) body.password = password;
-    if (!editingId) body.companyName = companyName.trim();
+
+    if (!editingId) {
+      if (isNewCompany) {
+        body.companyName = companyName.trim();
+      } else {
+        body.companyId = selectedCompanyId;
+      }
+    }
 
     if (showProfileImage && profileImageUrl.trim()) {
       body.profileImage = profileImageUrl.trim();
     }
+
+    if (selectedTableTypes.length > 0) body.tableTypes = selectedTableTypes;
+    if (selectedProductCategories.length > 0) body.productCategories = selectedProductCategories;
+    if (selectedOrderTypes.length > 0) body.orderTypes = selectedOrderTypes;
 
     try {
       const isEdit = editingId !== null;
@@ -200,6 +250,9 @@ export default function UserCreationPage() {
     setUserId(user.username);
     setPassword("");
     setRole(String(user.roleId));
+    setSelectedTableTypes(Array.isArray(user.tableTypes) ? user.tableTypes : []);
+    setSelectedProductCategories(Array.isArray(user.productCategories) ? user.productCategories : []);
+    setSelectedOrderTypes(Array.isArray(user.orderTypes) ? user.orderTypes : []);
     if (user.profileImage) {
       setShowProfileImage(true);
       setProfileImageUrl(user.profileImage);
@@ -422,12 +475,41 @@ export default function UserCreationPage() {
               className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
           </div>
 
-          {/* Row 2b - Company Name */}
+          {/* Row 2b - Company */}
           <div className="flex flex-wrap items-center gap-4">
-            <label className="text-sm font-medium text-gray-700 w-32 text-right shrink-0">Company Name *</label>
-            <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="e.g. Ocean View Restaurant"
-              className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+            <label className="text-sm font-medium text-gray-700 w-32 text-right shrink-0">Company *</label>
+            {!isNewCompany ? (
+              <div className="flex-1 flex items-center gap-2">
+                {isOwner ? (
+                  <>
+                    <select value={selectedCompanyId} onChange={(e) => setSelectedCompanyId(e.target.value)}
+                      className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                      <option value="">-- Select Company --</option>
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>{c.companyName}</option>
+                      ))}
+                    </select>
+                    <button type="button" onClick={() => setIsNewCompany(true)}
+                      className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap underline">
+                      + New
+                    </button>
+                  </>
+                ) : (
+                  <input type="text" value={companies[0]?.companyName || ""} readOnly
+                    className="flex-1 px-3 py-1.5 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-600 cursor-not-allowed" />
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center gap-2">
+                <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Ocean View Restaurant"
+                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                <button type="button" onClick={() => { setIsNewCompany(false); setCompanyName(""); }}
+                  className="text-xs text-gray-500 hover:text-gray-700 whitespace-nowrap">
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
           <div />
 
@@ -516,7 +598,7 @@ export default function UserCreationPage() {
               onChange={(e) => setSelectedTableTypes(Array.from(e.target.selectedOptions, (o) => o.value))}
               className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-[120px]">
               <option value="" disabled>--Select Table Type--</option>
-              {TABLE_TYPES.map((t) => (
+              {availableTableTypes.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
@@ -530,7 +612,7 @@ export default function UserCreationPage() {
               onChange={(e) => setSelectedProductCategories(Array.from(e.target.selectedOptions, (o) => o.value))}
               className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-[120px]">
               <option value="" disabled>--Select Category--</option>
-              {PRODUCT_CATEGORIES.map((c) => (
+              {availableProductCategories.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
@@ -541,7 +623,7 @@ export default function UserCreationPage() {
               onChange={(e) => setSelectedOrderTypes(Array.from(e.target.selectedOptions, (o) => o.value))}
               className="flex-1 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 h-[120px]">
               <option value="" disabled>--Select Order Type--</option>
-              {ORDER_TYPES.map((o) => (
+              {availableOrderTypes.map((o) => (
                 <option key={o} value={o}>{o}</option>
               ))}
             </select>

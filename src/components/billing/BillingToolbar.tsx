@@ -1,6 +1,10 @@
 "use client";
 
 import { Maximize2, Minimize2 } from "lucide-react";
+import {
+  useCompanyBranding,
+  getCompanyColors,
+} from "@/components/branding/CompanyBrandingProvider";
 
 interface BillingToolbarProps {
   onFullscreen: () => void;
@@ -15,14 +19,18 @@ export default function BillingToolbar({
   onHoldBills,
   onTableView,
 }: BillingToolbarProps) {
+  const { companyName } = useCompanyBranding();
+  const companyColors = getCompanyColors(companyName);
   return (
     <div className="flex items-center justify-between flex-wrap gap-3">
-      {/* Laundry Service F3 */}
-      <button className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 to-purple-500 text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-sm">
-        Laundry Service
-        <span className="bg-white/25 text-[10px] font-bold px-1.5 py-0.5 rounded">
-          F3
-        </span>
+      {/* Company Name */}
+      <button
+        className="flex items-center text-white text-sm font-semibold px-5 py-2.5 rounded-lg shadow-sm"
+        style={{
+          background: `linear-gradient(to right, ${companyColors.from}, ${companyColors.to})`,
+        }}
+      >
+        {companyName || "Laundry Service"}
       </button>
 
       {/* Right side buttons */}

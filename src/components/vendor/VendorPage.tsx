@@ -35,9 +35,7 @@ export default function VendorPage() {
   const [gstin, setGstin] = useState("");
   const [pan, setPan] = useState("");
   const [email, setEmail] = useState("");
-  const [vendorType, setVendorType] = useState("Payment");
   const [address, setAddress] = useState("");
-  const [isChessEnabled, setIsChessEnabled] = useState(false);
   const [showVendorInfo, setShowVendorInfo] = useState(true);
   const [showVendorList, setShowVendorList] = useState(true);
   const [vendors, setVendors] = useState<ApiVendor[]>([]);
@@ -132,9 +130,7 @@ export default function VendorPage() {
     setGstin("");
     setPan("");
     setEmail("");
-    setVendorType("Payment");
     setAddress("");
-    setIsChessEnabled(false);
     setEditId(null);
   };
 
@@ -279,33 +275,6 @@ export default function VendorPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-700 font-medium mb-1">Vendor Type</label>
-                <div className="flex items-center gap-4 mt-1">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="vendorType"
-                      value="Expense"
-                      checked={vendorType === "Expense"}
-                      onChange={(e) => setVendorType(e.target.value)}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">Expense</span>
-                  </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="vendorType"
-                      value="Payment"
-                      checked={vendorType === "Payment"}
-                      onChange={(e) => setVendorType(e.target.value)}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">Payment</span>
-                  </label>
-                </div>
-              </div>
-              <div>
                 <label className="block text-sm text-gray-700 font-medium mb-1">Address (500 max) :</label>
                 <textarea
                   value={address}
@@ -315,18 +284,6 @@ export default function VendorPage() {
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                 />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="isChessEnabled"
-                  checked={isChessEnabled}
-                  onChange={(e) => setIsChessEnabled(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="isChessEnabled" className="text-sm text-gray-700 cursor-pointer">
-                  Is Chess Enabled
-                </label>
               </div>
             </div>
 

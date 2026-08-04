@@ -62,6 +62,9 @@ export async function GET() {
         financialYear: true,
         language: true,
         licenseDate: true,
+        tableTypes: true,
+        orderTypes: true,
+        productCategories: true,
       },
     });
 
@@ -137,6 +140,7 @@ export async function PATCH(request: NextRequest) {
       "defaultGstPercentage", "igstEnabled",
       "currency", "currencySymbol", "timeZone", "dateFormat", "financialYear", "language",
       "licenseDate",
+      "tableTypes", "orderTypes", "productCategories",
     ];
 
     const updateData: Record<string, unknown> = {};
@@ -206,6 +210,9 @@ export async function PATCH(request: NextRequest) {
         financialYear: true,
         language: true,
         licenseDate: true,
+        tableTypes: true,
+        orderTypes: true,
+        productCategories: true,
       },
     });
 

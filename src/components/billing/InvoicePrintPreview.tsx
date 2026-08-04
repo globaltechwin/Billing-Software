@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Printer, Loader2 } from "lucide-react";
 import QRCode from "qrcode";
 
@@ -185,8 +185,15 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
       .catch(() => {});
   }, [invoice, paymentSettings, docType]);
 
+  const previewRef = useRef<HTMLDivElement>(null);
+
   const handlePrint = useCallback(() => {
+    const el = previewRef.current;
+    if (!el) return;
+    const parent = el.parentElement;
+    document.body.appendChild(el);
     window.print();
+    if (parent) parent.appendChild(el);
   }, []);
 
   if (loading) {
@@ -264,7 +271,7 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
 
       {/* Scrollable area */}
       <div className="flex-1 overflow-auto p-8 flex justify-center bg-gray-100">
-        <div className="print-invoice-area">
+        <div ref={previewRef} className="print-invoice-area">
           {/* Receipt Paper */}
           <div
             className="bg-white shadow-2xl mx-auto border border-gray-300"

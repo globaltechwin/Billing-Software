@@ -34,6 +34,16 @@ interface ApiPO {
   createdAt: string;
 }
 
+interface ApiProduct {
+  id: number;
+  productName: string;
+  unit: string | null;
+  currentStock: number;
+  purchasePrice: number;
+  isActive?: boolean;
+  gstMaster?: { totalPercentage: number } | null;
+}
+
 export default function StockInPage() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
@@ -43,6 +53,16 @@ export default function StockInPage() {
   const [saveError, setSaveError] = useState("");
   const [editingGrnId, setEditingGrnId] = useState<number | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(!!editId);
+
+  // Mode: "po" (from purchase order) or "direct" (quick add stock)
+  const [mode, setMode] = useState<"po" | "direct">("po");
+
+  // Direct mode: product search
+  const [productSearch, setProductSearch] = useState("");
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [productList, setProductList] = useState<ApiProduct[]>([]);
+  const [productLoading, setProductLoading] = useState(false);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
 
   // Header fields
   const [stockInNo, setStockInNo] = useState("SI-0011 (Auto)");
@@ -150,14 +170,19 @@ export default function StockInPage() {
         });
         setVendorSearch(String(vendor.vendorName || ""));
 
-        const po = grn.purchaseOrder as Record<string, unknown>;
-        setSelectedPO({
-          id: String(grn.purchaseOrderId),
-          poNo: String(po.poNumber || ""),
-          vendorName: String(vendor.vendorName || ""),
-          items: [],
-        });
-        setPoSearch(String(po.poNumber || ""));
+        const po = grn.purchaseOrder as Record<string, unknown> | null;
+        if (po) {
+          setSelectedPO({
+            id: String(grn.purchaseOrderId),
+            poNo: String(po.poNumber || ""),
+            vendorName: String(vendor.vendorName || ""),
+            items: [],
+          });
+          setPoSearch(String(po.poNumber || ""));
+          setMode("po");
+        } else {
+          setMode("direct");
+        }
 
         setStockInNo(String(grn.grnNumber || ""));
         const receiptDate = new Date(grn.receiptDate as string);
@@ -207,10 +232,28 @@ export default function StockInPage() {
       if (poDropdownRef.current && !poDropdownRef.current.contains(e.target as Node)) {
         setShowPODropdown(false);
       }
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
+        setShowProductDropdown(false);
+      }
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // Fetch products for direct mode
+  useEffect(() => {
+    if (mode !== "direct") return;
+    setProductLoading(true);
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.products) {
+          setProductList(data.products.filter((p: ApiProduct) => p.isActive !== false));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setProductLoading(false));
+  }, [mode]);
 
   // Filter vendors
   const filteredVendors = vendorsList.filter(
@@ -223,6 +266,35 @@ export default function StockInPage() {
   const filteredPOs = poList.filter(
     (po) => po.poNo.toLowerCase().includes(poSearch.toLowerCase())
   );
+
+  // Filter products for direct mode
+  const filteredProducts = productList.filter(
+    (p) =>
+      p.productName.toLowerCase().includes(productSearch.toLowerCase())
+  );
+
+  // Add product to items in direct mode
+  const handleProductSelect = (product: ApiProduct) => {
+    const gstPct = Number(product.gstMaster?.totalPercentage || 0);
+    const newItem: StockInItem = {
+      id: `direct-${Date.now()}-${product.id}`,
+      product: {
+        id: String(product.id),
+        name: product.productName,
+        uom: product.unit || "NOS",
+        currentStock: Number(product.currentStock),
+        purchaseRate: Number(product.purchasePrice),
+        gstPercentage: gstPct,
+      },
+      orderedQty: 0,
+      receivedQty: 1,
+      pendingQty: 0,
+      amount: 1 * Number(product.purchasePrice) * (1 + gstPct / 100),
+    };
+    setItems((prev) => [...prev, newItem]);
+    setProductSearch("");
+    setShowProductDropdown(false);
+  };
 
   // Select vendor
   const handleVendorSelect = (vendor: ApiVendor) => {
@@ -284,19 +356,29 @@ export default function StockInPage() {
   // Save
   const handleSave = async () => {
     if (items.length === 0) return;
-    if (!selectedVendor) return;
-    if (!selectedPO) return;
+    if (mode === "po" && !selectedPO) return;
     setSaving(true);
     setSaveError("");
     try {
-      const payload = {
-        purchaseOrderId: Number(selectedPO.id),
-        notes: remarks || null,
-        items: items.map((item) => ({
-          productId: Number(item.product.id),
-          receivedQty: item.receivedQty,
-        })),
-      };
+      const payload = mode === "direct"
+        ? {
+            mode: "direct",
+            vendorId: selectedVendor?.id || null,
+            notes: remarks || null,
+            items: items.map((item) => ({
+              productId: Number(item.product.id),
+              receivedQty: item.receivedQty,
+            })),
+          }
+        : {
+            mode: "po",
+            purchaseOrderId: Number(selectedPO!.id),
+            notes: remarks || null,
+            items: items.map((item) => ({
+              productId: Number(item.product.id),
+              receivedQty: item.receivedQty,
+            })),
+          };
       const url = editingGrnId
         ? `/api/goods-receipts/${editingGrnId}`
         : "/api/goods-receipts";
@@ -343,6 +425,9 @@ export default function StockInPage() {
     setItems([]);
     setSaveError("");
     setEditingGrnId(null);
+    setMode("po");
+    setProductSearch("");
+    setShowProductDropdown(false);
   };
 
   // Cancel
@@ -394,6 +479,29 @@ export default function StockInPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Mode Toggle */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => { setMode("po"); setItems([]); setProductSearch(""); }}
+                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  mode === "po"
+                    ? "bg-[#3d9a7e] text-white shadow-sm"
+                    : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                From PO
+              </button>
+              <button
+                onClick={() => { setMode("direct"); setItems([]); setSelectedPO(null); setPoSearch(""); setProductSearch(""); }}
+                className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  mode === "direct"
+                    ? "bg-[#3d9a7e] text-white shadow-sm"
+                    : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                Direct
+              </button>
+            </div>
             <button className="text-gray-400 hover:text-gray-600">
               <Search className="w-5 h-5" />
             </button>
@@ -445,7 +553,8 @@ export default function StockInPage() {
             {/* Vendor */}
             <div className="relative" ref={vendorDropdownRef}>
               <label className="block text-sm text-gray-700 font-medium mb-1">
-                Vendor<span className="text-red-500">*</span>
+                Vendor{mode === "po" && <span className="text-red-500">*</span>}
+                {mode === "direct" && <span className="text-gray-400 text-xs ml-1">(optional)</span>}
               </label>
               <input
                 type="text"
@@ -488,48 +597,91 @@ export default function StockInPage() {
           </div>
 
           <div className="grid grid-cols-4 gap-4 mt-4">
-            {/* Purchase Order */}
-            <div className="relative" ref={poDropdownRef}>
-              <label className="block text-sm text-gray-700 font-medium mb-1">
-                Purchase Order<span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={poSearch}
-                onChange={(e) => {
-                  setPoSearch(e.target.value);
-                  setShowPODropdown(true);
-                  setSelectedPO(null);
-                  setItems([]);
-                }}
-                onFocus={() => setShowPODropdown(true)}
-                placeholder="Select Purchase Order"
-                disabled={!!editingGrnId}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
-              />
-              {showPODropdown && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto">
-                  {!selectedVendor ? (
-                    <div className="px-4 py-3 text-sm text-gray-500">Select a vendor first</div>
-                  ) : poLoading ? (
-                    <div className="px-4 py-3 text-sm text-gray-500">Loading purchase orders...</div>
-                  ) : filteredPOs.length === 0 ? (
-                    <div className="px-4 py-3 text-sm text-gray-500">No approved purchase orders found for this vendor</div>
-                  ) : (
-                    filteredPOs.map((po) => (
-                      <button
-                        key={po.id}
-                        onClick={() => handlePOSelect(po)}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
-                      >
-                        <span className="text-gray-700 font-medium">{po.poNo}</span>
-                        <span className="text-xs text-gray-400 ml-2">{po.items.length} items</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Purchase Order (PO mode only) */}
+            {mode === "po" && (
+              <div className="relative" ref={poDropdownRef}>
+                <label className="block text-sm text-gray-700 font-medium mb-1">
+                  Purchase Order<span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={poSearch}
+                  onChange={(e) => {
+                    setPoSearch(e.target.value);
+                    setShowPODropdown(true);
+                    setSelectedPO(null);
+                    setItems([]);
+                  }}
+                  onFocus={() => setShowPODropdown(true)}
+                  placeholder="Select Purchase Order"
+                  disabled={!!editingGrnId}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+                />
+                {showPODropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto">
+                    {!selectedVendor ? (
+                      <div className="px-4 py-3 text-sm text-gray-500">Select a vendor first</div>
+                    ) : poLoading ? (
+                      <div className="px-4 py-3 text-sm text-gray-500">Loading purchase orders...</div>
+                    ) : filteredPOs.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-gray-500">No approved purchase orders found for this vendor</div>
+                    ) : (
+                      filteredPOs.map((po) => (
+                        <button
+                          key={po.id}
+                          onClick={() => handlePOSelect(po)}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                        >
+                          <span className="text-gray-700 font-medium">{po.poNo}</span>
+                          <span className="text-xs text-gray-400 ml-2">{po.items.length} items</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Product Search (Direct mode only) */}
+            {mode === "direct" && (
+              <div className="relative" ref={productDropdownRef}>
+                <label className="block text-sm text-gray-700 font-medium mb-1">
+                  Add Product<span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setShowProductDropdown(true);
+                  }}
+                  onFocus={() => setShowProductDropdown(true)}
+                  placeholder="Search product to add..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                {showProductDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 max-h-48 overflow-y-auto">
+                    {productLoading ? (
+                      <div className="px-4 py-3 text-sm text-gray-500">Loading products...</div>
+                    ) : filteredProducts.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-gray-500">No products found</div>
+                    ) : (
+                      filteredProducts.map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => handleProductSelect(p)}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
+                        >
+                          <span className="text-gray-700 font-medium">{p.productName}</span>
+                          <span className="text-xs text-gray-400 ml-2">Stock: {p.currentStock}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Invoice Number */}
             <div>
               <label className="block text-sm text-gray-700 font-medium mb-1">Invoice Number</label>
@@ -573,9 +725,10 @@ export default function StockInPage() {
                 <tr className="bg-[#3d9a7e] text-white">
                   <th className="px-4 py-3 text-left w-12 text-xs font-semibold">-</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold">Product</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold w-24">Ordered Qty</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold w-28">Received Qty</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold w-24">Pending Qty</th>
+                  {mode === "po" && <th className="px-4 py-3 text-left text-xs font-semibold w-24">Ordered Qty</th>}
+                  <th className="px-4 py-3 text-left text-xs font-semibold w-28">{mode === "direct" ? "Qty" : "Received Qty"}</th>
+                  {mode === "direct" && <th className="px-4 py-3 text-left text-xs font-semibold w-20">In Stock</th>}
+                  {mode === "po" && <th className="px-4 py-3 text-left text-xs font-semibold w-24">Pending Qty</th>}
                   <th className="px-4 py-3 text-left text-xs font-semibold w-20">Unit</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold w-28">Purchase Rate</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold w-24">Tax</th>
@@ -589,9 +742,11 @@ export default function StockInPage() {
                       <span className="text-orange-500 text-sm">
                         {loadingEdit
                           ? "Loading stock in record..."
-                          : selectedPO
-                            ? "No items in this Purchase Order"
-                            : "Select a Purchase Order to view items"}
+                          : mode === "direct"
+                            ? "Search and add products above"
+                            : selectedPO
+                              ? "No items in this Purchase Order"
+                              : "Select a Purchase Order to view items"}
                       </span>
                     </td>
                   </tr>
@@ -610,18 +765,18 @@ export default function StockInPage() {
                           </button>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700">{item.product.name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{item.orderedQty}</td>
+                        {mode === "po" && <td className="px-4 py-3 text-sm text-gray-700">{item.orderedQty}</td>}
                         <td className="px-4 py-3">
                           <input
                             type="number"
                             value={item.receivedQty || ""}
                             onChange={(e) => handleReceivedQtyChange(item.id, e.target.value)}
                             min="0"
-                            max={item.orderedQty}
                             className="w-24 px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{item.pendingQty}</td>
+                        {mode === "po" && <td className="px-4 py-3 text-sm text-gray-700">{item.pendingQty}</td>}
+                        {mode === "direct" && <td className="px-4 py-3 text-sm text-gray-500">{item.product.currentStock}</td>}
                         <td className="px-4 py-3 text-sm text-gray-700">{item.product.uom}</td>
                         <td className="px-4 py-3 text-sm text-gray-700">
                           {formatCurrency(item.product.purchaseRate)}
@@ -685,12 +840,20 @@ export default function StockInPage() {
                 {selectedVendor?.vendorName || "-"}
               </span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">Purchase Order</span>
-              <span className="text-sm font-medium text-gray-800">
-                {selectedPO?.poNo || "-"}
-              </span>
-            </div>
+            {mode === "po" && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Purchase Order</span>
+                <span className="text-sm font-medium text-gray-800">
+                  {selectedPO?.poNo || "-"}
+                </span>
+              </div>
+            )}
+            {mode === "direct" && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Mode</span>
+                <span className="text-sm font-medium text-emerald-600">Direct Stock In</span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-600">Invoice Number</span>
               <span className="text-sm font-medium text-gray-800">{invoiceNumber || "-"}</span>
@@ -721,7 +884,7 @@ export default function StockInPage() {
           <div className="flex gap-3 pt-2">
             <button
               onClick={handleSave}
-              disabled={items.length === 0 || saving || loadingEdit}
+              disabled={items.length === 0 || saving || loadingEdit || (mode === "po" && !selectedPO)}
               className="flex-1 px-6 py-2 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}

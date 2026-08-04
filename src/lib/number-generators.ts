@@ -22,6 +22,7 @@ const CODE_FIELD_MAP: Record<string, string> = {
   cashTransaction: "transactionId",
   quote: "quoteNumber",
   accountingInvoice: "invoiceNumber",
+  heldBill: "holdNumber",
 };
 
 async function getNextNumber(
@@ -148,4 +149,8 @@ export async function generateQuoteNumber(companyId: number): Promise<string> {
 
 export async function generateAccountingInvoiceNumber(companyId: number): Promise<string> {
   return getNextNumber(companyId, "accountingInvoice", "INV-", 4);
+}
+
+export async function generateHoldNumber(companyId: number): Promise<string> {
+  return getNextNumber(companyId, "heldBill", "HB", 6);
 }

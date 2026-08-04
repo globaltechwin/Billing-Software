@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { generateKOTNumber } from "@/lib/number-generators";
 import { getCurrentCompanyId, getCurrentUserId } from "@/lib/company-context";
+import { checkLowStock } from "@/lib/stock-alerts";
 
 interface ConvertEstimateInput {
   estimateId: number;
@@ -152,6 +153,8 @@ export async function POST(request: NextRequest) {
             createdByUserId: userId,
           },
         });
+
+        await checkLowStock(tx, companyId, item.productId);
       }
 
       await tx.estimate.update({

@@ -3,7 +3,7 @@ import { categoryUomMap } from "./data";
 
 describe("categoryUomMap", () => {
   it("has all 8 categories", () => {
-    expect(Object.keys(categoryUomMap)).toHaveLength(8);
+    expect(Object.keys(categoryUomMap)).toHaveLength(9);
   });
 
   it("Food category includes KG and Gm", () => {

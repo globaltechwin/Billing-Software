@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { getCurrentCompanyId, getCurrentUserId } from "@/lib/company-context";
+import { checkLowStock } from "@/lib/stock-alerts";
 
 interface InvoiceItemInput {
   productId: number;
@@ -225,6 +226,8 @@ export async function POST(request: NextRequest) {
             createdByUserId: userId,
           },
         });
+
+        await checkLowStock(tx, companyId, item.productId);
       }
 
       return inv;

@@ -3,6 +3,10 @@
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { type CartItem } from "./data";
 import { type CustomerData } from "./AddCustomerModal";
+import {
+  useCompanyBranding,
+  getCompanyColors,
+} from "@/components/branding/CompanyBrandingProvider";
 
 interface POSRightPanelProps {
   cart: CartItem[];
@@ -65,14 +69,18 @@ export default function POSRightPanel({
   onAddCustomer,
   onChangeCustomer,
 }: POSRightPanelProps) {
+  const { companyName } = useCompanyBranding();
+  const companyColors = getCompanyColors(companyName);
   return (
     <div className="space-y-3">
-      {/* Laundry Service Header */}
-      <button className="w-full bg-gradient-to-r from-[#1e293b] to-[#334155] text-white text-sm font-semibold py-3 rounded-xl shadow-sm">
-        Laundry Service
-        <span className="bg-white/20 text-[10px] font-bold px-1.5 py-0.5 rounded ml-2">
-          F3
-        </span>
+      {/* Company Name */}
+      <button
+        className="w-full text-white text-sm font-semibold py-3 rounded-xl shadow-sm"
+        style={{
+          background: `linear-gradient(to right, ${companyColors.from}, ${companyColors.to})`,
+        }}
+      >
+        {companyName || "Laundry Service"}
       </button>
 
       {/* Attender & Customer */}

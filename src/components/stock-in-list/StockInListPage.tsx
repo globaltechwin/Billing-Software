@@ -24,7 +24,7 @@ interface RawReceipt {
   notes: string | null;
   status: string;
   vendor: { vendorName: string };
-  purchaseOrder: { poNumber: string };
+  purchaseOrder: { poNumber: string } | null;
   items: RawReceiptItem[];
 }
 
@@ -99,7 +99,7 @@ export default function StockInListPage() {
               }),
               vendorName: (r.vendor as Record<string, string>)?.vendorName || "",
               purchaseOrder:
-                (r.purchaseOrder as Record<string, string>)?.poNumber || "",
+                (r.purchaseOrder as Record<string, string> | null)?.poNumber || (r.purchaseOrder ? "" : "Direct"),
               totalItems: items.length,
               totalQuantity: totalQty,
               totalAmount: totalAmt,
@@ -668,7 +668,7 @@ export default function StockInListPage() {
                   </div>
                   <div className="flex justify-between">
                     <span>PO No.</span>
-                    <span>{printReceipt.purchaseOrder.poNumber}</span>
+                    <span>{printReceipt.purchaseOrder?.poNumber || "Direct"}</span>
                   </div>
                 </div>
 

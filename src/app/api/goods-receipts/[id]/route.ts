@@ -52,11 +52,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { id } = await context.params;
     const grnId = Number(id);
     const body = await request.json();
-    const { purchaseOrderId, notes, items } = body;
+    const { notes, items } = body;
 
-    if (!purchaseOrderId) {
-      return NextResponse.json({ error: "purchaseOrderId is required" }, { status: 400 });
-    }
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "items are required" }, { status: 400 });
     }
@@ -72,6 +69,98 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Cannot edit a cancelled goods receipt" }, { status: 400 });
     }
 
+    const isDirect = !grn.purchaseOrderId;
+
+    if (isDirect) {
+      // ──── Direct GRN edit (no PO) ────
+      const oldByProduct = new Map(grn.items.map((i) => [i.productId, i]));
+      const deltas = new Map<number, number>();
+      for (const oldItem of grn.items) {
+        deltas.set(oldItem.productId, -Number(oldItem.receivedQty));
+      }
+
+      const newItems: Array<{
+        goodsReceiptId: number;
+        productId: number;
+        orderedQty: null;
+        receivedQty: number;
+        pendingQty: null;
+        batchNumber: string | null;
+        expiryDate: Date | null;
+      }> = [];
+
+      for (const item of items) {
+        if (!item.productId || !item.receivedQty || item.receivedQty <= 0) {
+          throw new Error("Each item needs productId and receivedQty > 0");
+        }
+        const old = oldByProduct.get(item.productId);
+        const oldReceived = old ? Number(old.receivedQty) : 0;
+        const receivedQty = Number(item.receivedQty);
+        deltas.set(item.productId, receivedQty - oldReceived);
+
+        newItems.push({
+          goodsReceiptId: grnId,
+          productId: item.productId,
+          orderedQty: null,
+          receivedQty,
+          pendingQty: null,
+          batchNumber: item.batchNumber || null,
+          expiryDate: item.expiryDate ? new Date(item.expiryDate) : null,
+        });
+      }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.goodsReceiptItem.deleteMany({ where: { goodsReceiptId: grnId } });
+        await tx.inventoryLedger.deleteMany({
+          where: { companyId, referenceType: "PURCHASE", referenceId: grnId },
+        });
+
+        for (const [productId, delta] of deltas) {
+          if (delta === 0) continue;
+          await tx.product.update({
+            where: { id: productId },
+            data: { currentStock: { increment: delta } },
+          });
+        }
+
+        await tx.goodsReceiptItem.createMany({ data: newItems });
+
+        for (const item of newItems) {
+          if (item.receivedQty <= 0) continue;
+          const product = await tx.product.findUnique({ where: { id: item.productId } });
+          const balance = product ? Number(product.currentStock) : 0;
+          await tx.inventoryLedger.create({
+            data: {
+              companyId,
+              productId: item.productId,
+              quantityIn: item.receivedQty,
+              quantityOut: 0,
+              balance,
+              referenceType: "PURCHASE",
+              referenceId: grnId,
+              referenceNumber: grn.grnNumber,
+              createdByUserId: userId,
+            },
+          });
+        }
+
+        const grnStatus = newItems.every((i) => i.receivedQty > 0) ? GRNStatus.COMPLETED : GRNStatus.PARTIAL;
+
+        return tx.goodsReceipt.update({
+          where: { id: grnId },
+          data: { notes: notes || null, status: grnStatus },
+        });
+      });
+
+      return NextResponse.json({ success: true, grn: updated });
+    }
+
+    // ──── PO-based GRN edit ────
+    const { purchaseOrderId } = body;
+    if (!purchaseOrderId) {
+      return NextResponse.json({ error: "purchaseOrderId is required for PO mode" }, { status: 400 });
+    }
+
     const po = await prisma.purchaseOrder.findFirst({
       where: { id: purchaseOrderId, companyId },
       include: { items: true },
@@ -83,15 +172,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Cannot edit goods receipt for a cancelled PO" }, { status: 400 });
     }
 
-    const oldByProduct = new Map(grn.items.map((i) => [i.productId, i]));
+    const poOldByProduct = new Map(grn.items.map((i) => [i.productId, i]));
 
-    // Deltas start as full reversal for items that may be removed in this edit
-    const deltas = new Map<number, number>();
+    const poDeltas = new Map<number, number>();
     for (const oldItem of grn.items) {
-      deltas.set(oldItem.productId, -Number(oldItem.receivedQty));
+      poDeltas.set(oldItem.productId, -Number(oldItem.receivedQty));
     }
 
-    const newItems: Array<{
+    const poNewItems: Array<{
       goodsReceiptId: number;
       productId: number;
       orderedQty: number;
@@ -107,20 +195,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         throw new Error(`Product ${item.productId} not found in PO`);
       }
 
-      const old = oldByProduct.get(item.productId);
+      const old = poOldByProduct.get(item.productId);
       const oldReceived = old ? Number(old.receivedQty) : 0;
       const receivedQty = Number(item.receivedQty);
 
-      // Max this GRN may receive = ordered - (qty received by OTHER grns on this PO)
       const maxAllowed =
         Number(poItem.quantity) - (Number(poItem.receivedQty) - oldReceived);
       if (receivedQty > maxAllowed) {
         throw new Error(`Cannot receive more than ordered for product ${item.productId}`);
       }
 
-      deltas.set(item.productId, receivedQty - oldReceived);
+      poDeltas.set(item.productId, receivedQty - oldReceived);
 
-      newItems.push({
+      poNewItems.push({
         goodsReceiptId: grnId,
         productId: item.productId,
         orderedQty: Number(poItem.quantity),
@@ -132,13 +219,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      // Revert old GRN items + ledger, then re-apply the edited quantities
       await tx.goodsReceiptItem.deleteMany({ where: { goodsReceiptId: grnId } });
       await tx.inventoryLedger.deleteMany({
         where: { companyId, referenceType: "PURCHASE", referenceId: grnId },
       });
 
-      for (const [productId, delta] of deltas) {
+      for (const [productId, delta] of poDeltas) {
         if (delta === 0) continue;
         await tx.product.update({
           where: { id: productId },
@@ -150,9 +236,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         });
       }
 
-      await tx.goodsReceiptItem.createMany({ data: newItems });
+      await tx.goodsReceiptItem.createMany({ data: poNewItems });
 
-      for (const item of newItems) {
+      for (const item of poNewItems) {
         if (item.receivedQty <= 0) continue;
         await tx.inventoryLedger.create({
           data: {
@@ -169,8 +255,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         });
       }
 
-      // Recompute the balance chain for every affected product so reports stay consistent
-      const affectedProducts = [...deltas.keys()];
+      const affectedProducts = [...poDeltas.keys()];
       for (const productId of affectedProducts) {
         const entries = await tx.inventoryLedger.findMany({
           where: { companyId, productId },
@@ -190,16 +275,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         });
       }
 
-      // Recompute GRN status
-      const allReceived = newItems.every((i) => i.receivedQty > 0);
-      const anyReceived = newItems.some((i) => i.receivedQty > 0);
+      const allReceived = poNewItems.every((i) => i.receivedQty > 0);
+      const anyReceived = poNewItems.some((i) => i.receivedQty > 0);
       const grnStatus = !anyReceived
         ? GRNStatus.PENDING
         : allReceived
           ? GRNStatus.COMPLETED
           : GRNStatus.PARTIAL;
 
-      // Recompute PO status
       const poItems = await tx.purchaseOrderItem.findMany({
         where: { purchaseOrderId },
       });

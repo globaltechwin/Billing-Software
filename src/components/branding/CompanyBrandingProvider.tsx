@@ -117,3 +117,33 @@ export function CompanyBrandingProvider({
 export function useCompanyBranding(): CompanyBranding {
   return useContext(CompanyBrandingContext);
 }
+
+const COMPANY_COLORS: { from: string; to: string }[] = [
+  { from: "#7c3aed", to: "#a78bfa" },
+  { from: "#2563eb", to: "#60a5fa" },
+  { from: "#0d9488", to: "#2dd4bf" },
+  { from: "#ea580c", to: "#fb923c" },
+  { from: "#e11d48", to: "#fb7185" },
+  { from: "#4f46e5", to: "#818cf8" },
+  { from: "#059669", to: "#34d399" },
+  { from: "#d97706", to: "#fbbf24" },
+  { from: "#0891b2", to: "#22d3ee" },
+  { from: "#db2777", to: "#f472b6" },
+  { from: "#9333ea", to: "#c084fc" },
+  { from: "#0284c7", to: "#38bdf8" },
+];
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+export function getCompanyColors(
+  name: string
+): { from: string; to: string } {
+  if (!name) return COMPANY_COLORS[0];
+  return COMPANY_COLORS[hashString(name) % COMPANY_COLORS.length];
+}

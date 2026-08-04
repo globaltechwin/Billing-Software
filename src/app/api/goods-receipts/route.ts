@@ -7,6 +7,8 @@ import { generateGRNNumber } from "@/lib/number-generators";
 interface GrnItemInput {
   productId: number;
   receivedQty: number;
+  purchaseRate?: number;
+  gstPercentage?: number;
   batchNumber?: string | null;
   expiryDate?: string | null;
 }
@@ -46,10 +48,85 @@ export async function POST(request: NextRequest) {
     const companyId = await getCurrentCompanyId();
     const userId = await getCurrentUserId();
     const body = await request.json();
-    const { purchaseOrderId, items, notes } = body;
+    const { mode, purchaseOrderId, vendorId, items, notes } = body;
 
-    if (!purchaseOrderId || !items || items.length === 0) {
-      return NextResponse.json({ error: "purchaseOrderId and items are required" }, { status: 400 });
+    if (!items || items.length === 0) {
+      return NextResponse.json({ error: "Items are required" }, { status: 400 });
+    }
+
+    const grnNumber = await generateGRNNumber(companyId);
+    const isDirect = mode === "direct";
+
+    if (isDirect) {
+      // ──── Direct Stock In (no PO) ────
+      const resolvedVendorId = vendorId || null;
+
+      const grnItems = items.map((item: GrnItemInput) => {
+        if (!item.productId || !item.receivedQty || item.receivedQty <= 0) {
+          throw new Error("Each item needs productId and receivedQty > 0");
+        }
+        return {
+          productId: item.productId,
+          orderedQty: null as number | null,
+          receivedQty: item.receivedQty,
+          pendingQty: null as number | null,
+          batchNumber: item.batchNumber || null,
+          expiryDate: item.expiryDate ? new Date(item.expiryDate) : null,
+        };
+      });
+
+      const result = await prisma.$transaction(async (tx) => {
+        const grn = await tx.goodsReceipt.create({
+          data: {
+            grnNumber,
+            companyId,
+            purchaseOrderId: null,
+            vendorId: resolvedVendorId ?? 1,
+            status: "COMPLETED" as GRNStatus,
+            notes: notes || null,
+            createdByUserId: userId,
+          },
+        });
+
+        await tx.goodsReceiptItem.createMany({
+          data: grnItems.map((item: typeof grnItems[number]) => ({ ...item, goodsReceiptId: grn.id })),
+        });
+
+        for (const item of grnItems) {
+          if (item.receivedQty > 0) {
+            const product = await tx.product.findUnique({ where: { id: item.productId } });
+            if (product) {
+              const newBalance = Number(product.currentStock) + item.receivedQty;
+              await tx.product.update({
+                where: { id: item.productId },
+                data: { currentStock: newBalance },
+              });
+              await tx.inventoryLedger.create({
+                data: {
+                  companyId,
+                  productId: item.productId,
+                  quantityIn: item.receivedQty,
+                  quantityOut: 0,
+                  balance: newBalance,
+                  referenceType: "PURCHASE",
+                  referenceId: grn.id,
+                  referenceNumber: grnNumber,
+                  createdByUserId: userId,
+                },
+              });
+            }
+          }
+        }
+
+        return grn;
+      });
+
+      return NextResponse.json({ success: true, grn: result }, { status: 201 });
+    }
+
+    // ──── PO-based Stock In (existing flow) ────
+    if (!purchaseOrderId) {
+      return NextResponse.json({ error: "purchaseOrderId is required for PO mode" }, { status: 400 });
     }
 
     const po = await prisma.purchaseOrder.findFirst({
@@ -61,10 +138,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Cannot receive goods for ${po.status} PO` }, { status: 400 });
     }
 
-    const grnNumber = await generateGRNNumber(companyId);
-
     let allComplete = true;
-    const grnItems: Array<{
+    const poGrnItems: Array<{
       productId: number; orderedQty: number; receivedQty: number; pendingQty: number;
       batchNumber: string | null; expiryDate: Date | null;
     }> = items.map((item: GrnItemInput) => {
@@ -75,7 +150,6 @@ export async function POST(request: NextRequest) {
       const pendingQty = Number(poItem.quantity) - Number(poItem.receivedQty) - receivedQty;
       if (pendingQty < 0) throw new Error(`Cannot receive more than ordered for product ${item.productId}`);
       if (receivedQty > 0 && pendingQty > 0) allComplete = false;
-      if (pendingQty === 0) allComplete = false;
 
       return {
         productId: item.productId,
@@ -87,7 +161,7 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    const grnStatus = grnItems.every((i) => i.receivedQty === 0) ? "PENDING" : allComplete ? "COMPLETED" : "PARTIAL";
+    const grnStatus = poGrnItems.every((i) => i.receivedQty === 0) ? "PENDING" : allComplete ? "COMPLETED" : "PARTIAL";
 
     const result = await prisma.$transaction(async (tx) => {
       const grn = await tx.goodsReceipt.create({
@@ -104,10 +178,10 @@ export async function POST(request: NextRequest) {
       });
 
       await tx.goodsReceiptItem.createMany({
-        data: grnItems.map((item) => ({ ...item, goodsReceiptId: grn.id })),
+        data: poGrnItems.map((item) => ({ ...item, goodsReceiptId: grn.id })),
       });
 
-      for (const item of grnItems) {
+      for (const item of poGrnItems) {
         if (item.receivedQty > 0) {
           await tx.purchaseOrderItem.updateMany({
             where: { purchaseOrderId, productId: item.productId },

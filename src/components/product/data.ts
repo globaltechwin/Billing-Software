@@ -23,6 +23,7 @@ export const productCategories = [
   "Main Course",
   "Stationery",
   "Electronics",
+  "Donation",
 ];
 
 export const categoryUomMap: Record<string, string[]> = {
@@ -34,6 +35,7 @@ export const categoryUomMap: Record<string, string[]> = {
   "Main Course": ["Pcs", "Nos", "Plate", "Bowl", "Pack", "Dozen", "Kg"],
   Stationery: ["Pcs", "Nos", "Box", "Pack", "Sheet", "Ream", "Dozen", "Set", "Bundle"],
   Electronics: ["Pcs", "Nos", "Box", "Set", "Unit", "Pack", "Pair"],
+  Donation: ["Nos", "Pcs", "Sheet", "Year", "Set", "Pack"],
 };
 
 export const vendors = [

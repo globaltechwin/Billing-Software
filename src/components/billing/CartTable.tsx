@@ -32,6 +32,7 @@ interface CartTableProps {
   onRemove: (id: number) => void;
   perItemGst?: boolean;
   onUpdateGstRate?: (id: number, rate: number) => void;
+  onItemRemarksChange?: (id: number, remarks: string) => void;
 }
 
 export default function CartTable({
@@ -40,18 +41,19 @@ export default function CartTable({
   onRemove,
   perItemGst = false,
   onUpdateGstRate,
+  onItemRemarksChange,
 }: CartTableProps) {
   const cols = perItemGst
-    ? "grid grid-cols-[36px_1.5fr_70px_70px_80px_1fr_110px_40px]"
-    : "grid grid-cols-[36px_1.5fr_80px_80px_1fr_120px_40px]";
+    ? "grid grid-cols-[36px_1.5fr_70px_70px_60px_80px_1fr_110px_40px]"
+    : "grid grid-cols-[36px_1.5fr_80px_80px_60px_1fr_120px_40px]";
   const colsHeader = perItemGst
-    ? "grid grid-cols-[36px_1.5fr_70px_70px_80px_1fr_110px_40px]"
-    : "grid grid-cols-[36px_1.5fr_80px_80px_1fr_120px_40px]";
+    ? "grid grid-cols-[36px_1.5fr_70px_70px_60px_80px_1fr_110px_40px]"
+    : "grid grid-cols-[36px_1.5fr_80px_80px_60px_1fr_120px_40px]";
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       <div className="overflow-x-auto">
-        <div className={perItemGst ? "min-w-[720px]" : "min-w-[620px]"}>
+        <div className={perItemGst ? "min-w-[780px]" : "min-w-[680px]"}>
       {/* Table Header */}
       <div className={`${colsHeader} bg-[#1a8a7d] text-white text-xs font-semibold`}>
         <div className="flex items-center justify-center py-2.5">
@@ -60,6 +62,7 @@ export default function CartTable({
         <div className="py-2.5 px-2">Product Name</div>
         <div className="py-2.5 px-2 text-right">Price</div>
         <div className="py-2.5 px-2 text-center">Qty.</div>
+        <div className="py-2.5 px-2 text-center">Stock</div>
         {perItemGst && <div className="py-2.5 px-2 text-center">GST %</div>}
         <div className="py-2.5 px-2">Remarks</div>
         <div className="py-2.5 px-2 text-right">Total</div>
@@ -88,25 +91,42 @@ export default function CartTable({
             </div>
             <div className="py-2 px-2 font-medium truncate">{item.name}</div>
             <div className="py-2 px-2 text-right">{item.price.toFixed(2)}</div>
-            <div className="py-2 px-2 flex items-center justify-center gap-1">
-              <button
-                onClick={() => onUpdateQty(item.id, Math.max(0.5, item.qty - 1))}
-                className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-xs flex items-center justify-center"
-              >
-                -
-              </button>
-              <span className="w-6 text-center text-xs">{item.qty}</span>
-              <button
-                onClick={() => {
-                  if (item.qty < item.stock) {
-                    onUpdateQty(item.id, item.qty + 1);
-                  }
-                }}
-                disabled={item.qty >= item.stock}
-                className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-xs flex items-center justify-center disabled:opacity-40"
-              >
-                +
-              </button>
+            <div className="py-2 px-1 flex items-center justify-center">
+              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => onUpdateQty(item.id, Math.max(0.5, item.qty - 1))}
+                  className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 text-sm font-medium"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  value={item.qty}
+                  min={0.5}
+                  step={0.5}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 0.5) {
+                      onUpdateQty(item.id, val);
+                    }
+                  }}
+                  className="w-10 h-7 text-center text-xs font-medium border-x border-gray-300 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <button
+                  onClick={() => {
+                    if (item.qty < item.stock) {
+                      onUpdateQty(item.id, item.qty + 1);
+                    }
+                  }}
+                  disabled={item.qty >= item.stock}
+                  className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <div className="py-2 px-2 text-center text-xs text-gray-500">
+              {item.stock}
             </div>
             {perItemGst && (
               <div className="py-2 px-1 flex items-center justify-center">
@@ -125,8 +145,8 @@ export default function CartTable({
               <input
                 type="text"
                 value={item.remarks}
-                readOnly
-                className="w-full text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50"
+                onChange={(e) => onItemRemarksChange?.(item.id, e.target.value)}
+                className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-purple-500"
               />
             </div>
             <div className="py-2 px-2 text-right font-medium">

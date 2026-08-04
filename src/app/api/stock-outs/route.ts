@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentCompanyId, getCurrentUserId } from "@/lib/company-context";
 import { generateStockOutNumber } from "@/lib/number-generators";
+import { checkLowStock } from "@/lib/stock-alerts";
 
 export async function GET() {
   try {
@@ -101,6 +102,8 @@ export async function POST(request: NextRequest) {
             createdByUserId: userId,
           },
         });
+
+        await checkLowStock(tx, companyId, item.productId);
       }
 
       return stockOut;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import BillingToolbar from "./BillingToolbar";
 import ProductSearch from "./ProductSearch";
 import CartTable, { type CartItemGST } from "./CartTable";
@@ -32,6 +32,8 @@ interface CartItemExtra extends CartItemGST {
 
 export default function BillingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resumeId = searchParams.get("resume");
   const [cart, setCart] = useState<CartItemExtra[]>([]);
   const [discPercent, setDiscPercent] = useState(0);
   const [discAmount, setDiscAmount] = useState(0);
@@ -41,7 +43,8 @@ export default function BillingPage() {
   const [creditBill, setCreditBill] = useState(false);
   const [remarks, setRemarks] = useState("");
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
-  const [showQR, setShowQR] = useState(true);
+  const [showQR, setShowQR] = useState(false);
+  const [hasQRAccess, setHasQRAccess] = useState(false);
   const [amountGiven, setAmountGiven] = useState(0);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerData | null>(null);
@@ -80,6 +83,61 @@ export default function BillingPage() {
       })
       .catch(() => {});
   }, []);
+
+  // Check QR access
+  useEffect(() => {
+    fetch("/api/my-menu-access")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          const paths = data.allowedMenuPaths || [];
+          const allowed = paths.includes("/admin/qr");
+          setHasQRAccess(allowed);
+          if (allowed) setShowQR(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Resume a held bill
+  useEffect(() => {
+    if (!resumeId) return;
+    fetch("/api/held-bills")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.success) return;
+        const bill = data.heldBills.find((h: { id: number }) => h.id === parseInt(resumeId));
+        if (!bill) {
+          alert("Held bill not found");
+          return;
+        }
+        // Load items into cart
+        const loadedItems = bill.items.map((item: CartItemExtra) => ({
+          ...item,
+          gstApplicable: true,
+          gst: {
+            gstPercentage: 0,
+            cgstPercentage: 0,
+            sgstPercentage: 0,
+            igstPercentage: 0,
+            cgstAmount: 0,
+            sgstAmount: 0,
+            igstAmount: 0,
+            taxAmount: 0,
+          },
+        }));
+        setCart(loadedItems);
+        setRemarks(bill.remarks || "");
+        setSalesPerson(bill.salesPerson || "");
+        if (bill.gstRate) setGstRate(Number(bill.gstRate));
+        setDiscAmount(Number(bill.discountAmount) || 0);
+        // Delete the held bill after resuming
+        fetch(`/api/held-bills?id=${bill.id}`, { method: "DELETE" });
+        // Clean up URL
+        router.replace("/billing/billing");
+      })
+      .catch(() => alert("Failed to load held bill"));
+  }, [resumeId, router]);
 
   const isGSTVisible = billingMode === "WITH_GST" || billingMode === "WITH_IGST" || billingMode === "WITH_GST_HIDE" || billingMode === "GST_ITEM_WISE";
   const isGSTHidden = billingMode === "WITH_GST_HIDE";
@@ -167,6 +225,12 @@ export default function BillingPage() {
     );
   }, []);
 
+  const handleUpdateRemarks = useCallback((id: number, remarks: string) => {
+    setCart((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, remarks } : item))
+    );
+  }, []);
+
   const handleFullscreen = useCallback(() => {
     if (document.fullscreenElement) {
       document.exitFullscreen();
@@ -175,23 +239,107 @@ export default function BillingPage() {
     }
   }, []);
 
-  const handleHoldBills = useCallback(() => {
-    alert(`Bill held! ${cart.length} items saved.`);
-  }, [cart]);
+  const handleHoldBills = useCallback(async () => {
+    if (cart.length === 0) return;
+    try {
+      const items = cart.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        name: item.name,
+        price: item.price,
+        qty: item.qty,
+        stock: item.stock,
+        remarks: item.remarks,
+      }));
+      const res = await fetch("/api/held-bills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: selectedCustomer?.id || null,
+          customerName: selectedCustomer?.name || null,
+          items,
+          subtotal,
+          taxAmount: effectiveTax,
+          discountAmount: discAmount,
+          grandTotal: total,
+          gstMode: gstModeAPI,
+          gstRate: gstRate || null,
+          paymentMode,
+          remarks: remarks || null,
+          salesPerson: salesPerson || null,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(`Bill held! ${cart.length} items saved as ${data.heldBill.holdNumber}`);
+        setCart([]);
+        setDiscPercent(0);
+        setDiscAmount(0);
+        setTaxAmount(0);
+        setAmountGiven(0);
+        setRemarks("");
+        setSelectedCustomer(null);
+        setPaymentMode("CASH");
+      } else {
+        alert(data.error || "Failed to hold bill");
+      }
+    } catch {
+      alert("Failed to hold bill");
+    }
+  }, [cart, selectedCustomer, subtotal, effectiveTax, discAmount, total, gstModeAPI, gstRate, paymentMode, remarks, salesPerson]);
 
   const handleTableView = useCallback(() => {
     router.push("/billing/kot");
   }, [router]);
 
-  const handleHold = useCallback(() => {
-    alert(`Bill held! ${cart.length} items saved.`);
-    setCart([]);
-    setDiscPercent(0);
-    setDiscAmount(0);
-    setTaxAmount(0);
-    setAmountGiven(0);
-    setRemarks("");
-  }, [cart]);
+  const handleHold = useCallback(async () => {
+    if (cart.length === 0) return;
+    try {
+      const items = cart.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        name: item.name,
+        price: item.price,
+        qty: item.qty,
+        stock: item.stock,
+        remarks: item.remarks,
+      }));
+      const res = await fetch("/api/held-bills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: selectedCustomer?.id || null,
+          customerName: selectedCustomer?.name || null,
+          items,
+          subtotal,
+          taxAmount: effectiveTax,
+          discountAmount: discAmount,
+          grandTotal: total,
+          gstMode: gstModeAPI,
+          gstRate: gstRate || null,
+          paymentMode,
+          remarks: remarks || null,
+          salesPerson: salesPerson || null,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(`Bill held! ${cart.length} items saved as ${data.heldBill.holdNumber}`);
+        setCart([]);
+        setDiscPercent(0);
+        setDiscAmount(0);
+        setTaxAmount(0);
+        setAmountGiven(0);
+        setRemarks("");
+        setSelectedCustomer(null);
+        setPaymentMode("CASH");
+      } else {
+        alert(data.error || "Failed to hold bill");
+      }
+    } catch {
+      alert("Failed to hold bill");
+    }
+  }, [cart, selectedCustomer, subtotal, effectiveTax, discAmount, total, gstModeAPI, gstRate, paymentMode, remarks, salesPerson]);
 
   const clearAll = useCallback(() => {
     setCart([]);
@@ -500,6 +648,7 @@ export default function BillingPage() {
               onRemove={handleRemove}
               perItemGst={isItemWise}
               onUpdateGstRate={handleUpdateGstRate}
+              onItemRemarksChange={handleUpdateRemarks}
             />
           </div>
 
@@ -595,6 +744,7 @@ export default function BillingPage() {
           </div>
 
           {/* QR Code Toggle */}
+          {hasQRAccess && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
             <div className="flex items-center gap-2">
               <input type="checkbox" checked={showQR} onChange={(e) => setShowQR(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 flex-shrink-0" />
@@ -607,6 +757,7 @@ export default function BillingPage() {
               <span className="text-xs text-purple-600 font-medium">Show UPI QR on Bill</span>
             </div>
           </div>
+          )}
 
           {/* Bill Summary */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">

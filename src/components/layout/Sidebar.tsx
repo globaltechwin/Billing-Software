@@ -60,6 +60,7 @@ const NAV_ITEMS: NavItemWithSubmenu[] = [
       },
       { label: "Kitchen Display", href: "/view-bill/kitchen-display" },
       { label: "Delete Bills", href: "/view-bill/delete-bills" },
+      { label: "Held Bills", href: "/view-bill/held-bills" },
     ],
   },
   {
@@ -483,11 +484,14 @@ export default function Sidebar({
       return NAV_ITEMS
         .map((item) => {
           if (item.submenu) {
-            const visibleChildren = item.submenu.filter((sub) => pathSet.has(sub.href));
+            const parentAllowed = pathSet.has(item.href);
+            const visibleChildren = parentAllowed
+              ? item.submenu
+              : item.submenu.filter((sub) => pathSet.has(sub.href));
             if (visibleChildren.length === 0) return null;
             return { ...item, submenu: visibleChildren };
           }
-          return pathSet.has(item.href) ? item : null;
+          return pathSet.has(item.href) || [...pathSet].some((p) => p.startsWith(item.href + "/")) ? item : null;
         })
         .filter(Boolean) as NavItemWithSubmenu[];
     }

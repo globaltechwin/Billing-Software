@@ -46,6 +46,9 @@ export async function GET(request: NextRequest) {
         roleName: uc.role.name,
         companyId: uc.company.id,
         companyName: uc.company.companyName,
+        tableTypes: uc.tableTypes,
+        productCategories: uc.productCategories,
+        orderTypes: uc.orderTypes,
         createdAt: uc.createdAt,
       }))
       .filter((user, idx, arr) => arr.findIndex((u) => u.id === user.id) === idx);
@@ -57,56 +60,60 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/users — create a new user + company
+// POST /api/users — create a new user (in existing company or new company)
 export async function POST(request: NextRequest) {
   try {
     const ctx = await getCompanyContext();
 
     const body = await request.json();
-    const { username, name, email, mobileNumber, password, roleId, companyName, profileImage } = body;
+    const { username, name, email, mobileNumber, password, roleId, companyName, companyId: targetCompanyIdInput, profileImage, tableTypes, productCategories, orderTypes } = body;
 
-    if (!username || !name || !password || !roleId || !companyName) {
+    if (!username || !name || !password || !roleId) {
       return NextResponse.json(
-        { error: "Username, name, password, role, and company name are required" },
+        { error: "Username, name, password, and role are required" },
         { status: 400 }
       );
     }
 
-    // Resolve target company: if companyName provided, we'll create one; otherwise use caller's company
-    const targetCompanyId = companyName ? 0 : ctx.companyId;
+    // Resolve target company
+    let finalCompanyId: number;
+    let isNewCompany = false;
 
-    // Verify the caller belongs to the target company (skip for superadmin creating new company)
-    if (!companyName) {
+    if (targetCompanyIdInput) {
+      // Add user to existing company
+      finalCompanyId = parseInt(targetCompanyIdInput, 10);
       const callerCompany = await prisma.userCompany.findUnique({
-        where: {
-          userId_companyId: { userId: ctx.userId, companyId: targetCompanyId },
-        },
+        where: { userId_companyId: { userId: ctx.userId, companyId: finalCompanyId } },
       });
       if (!callerCompany) {
-        return NextResponse.json(
-          { error: "You do not have access to this company" },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: "You do not have access to this company" }, { status: 403 });
+      }
+    } else if (companyName) {
+      // Create new company
+      isNewCompany = true;
+      finalCompanyId = 0; // will be set after company creation
+    } else {
+      // Use caller's company
+      finalCompanyId = ctx.companyId;
+      const callerCompany = await prisma.userCompany.findUnique({
+        where: { userId_companyId: { userId: ctx.userId, companyId: finalCompanyId } },
+      });
+      if (!callerCompany) {
+        return NextResponse.json({ error: "You do not have access to this company" }, { status: 403 });
       }
     }
 
     // Check username uniqueness
     const existingUsername = await prisma.user.findUnique({ where: { username } });
     if (existingUsername) {
-      return NextResponse.json(
-        { error: "Username already exists" },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: "Username already exists" }, { status: 409 });
     }
 
     // Check email uniqueness (auto-generate if not provided)
     const userEmail = email || `${username}@billora.local`;
     const existingEmail = await prisma.user.findUnique({ where: { email: userEmail } });
     if (existingEmail) {
-      return NextResponse.json(
-        { error: "Email already exists" },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: "Email already exists" }, { status: 409 });
     }
 
     // Verify role exists
@@ -118,31 +125,34 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await hashPassword(password);
 
     const result = await prisma.$transaction(async (tx) => {
-      // Create company
-      const company = await tx.company.create({
-        data: {
-          companyName,
-          address: "",
-          phone: "",
-          email: userEmail,
-          gstEnabled: true,
-          gstMode: "GST_VISIBLE",
-          isActive: true,
-          createdByUserId: ctx.userId,
-          stateName: "",
-        },
-      });
+      let companyId = finalCompanyId;
 
-      // Create default branch
-      await tx.branch.create({
-        data: {
-          companyId: company.id,
-          branchName: "Head Office",
-          isHeadOffice: true,
-          isDefault: true,
-          isActive: true,
-        },
-      });
+      if (isNewCompany && companyName) {
+        // Create new company + default branch
+        const company = await tx.company.create({
+          data: {
+            companyName,
+            address: "",
+            phone: "",
+            email: userEmail,
+            gstEnabled: true,
+            gstMode: "GST_VISIBLE",
+            isActive: true,
+            createdByUserId: ctx.userId,
+            stateName: "",
+          },
+        });
+        await tx.branch.create({
+          data: {
+            companyId: company.id,
+            branchName: "Head Office",
+            isHeadOffice: true,
+            isDefault: true,
+            isActive: true,
+          },
+        });
+        companyId = company.id;
+      }
 
       // Create user
       const user = await tx.user.create({
@@ -153,7 +163,7 @@ export async function POST(request: NextRequest) {
           mobileNumber: mobileNumber || null,
           profileImage: profileImage || null,
           password: hashedPassword,
-          defaultCompanyId: company.id,
+          defaultCompanyId: companyId,
           roleId,
           isActive: true,
         },
@@ -163,12 +173,15 @@ export async function POST(request: NextRequest) {
       await tx.userCompany.create({
         data: {
           userId: user.id,
-          companyId: company.id,
+          companyId,
           roleId,
+          tableTypes: tableTypes || null,
+          productCategories: productCategories || null,
+          orderTypes: orderTypes || null,
         },
       });
 
-      return { user, company };
+      return { user, companyId };
     });
 
     return NextResponse.json({
@@ -193,7 +206,7 @@ export async function PATCH(request: NextRequest) {
     const ctx = await getCompanyContext();
 
     const body = await request.json();
-    const { userId, name, email, mobileNumber, roleId, isActive, companyId, profileImage } = body;
+    const { userId, name, email, mobileNumber, roleId, isActive, companyId, profileImage, tableTypes, productCategories, orderTypes } = body;
 
     if (!userId) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
@@ -240,13 +253,25 @@ export async function PATCH(request: NextRequest) {
         where: { userId_companyId: { userId, companyId: userCompany.companyId } },
       });
       await prisma.userCompany.create({
-        data: { userId, companyId: targetCompanyId, roleId: roleId || userCompany.roleId },
+        data: {
+          userId, companyId: targetCompanyId, roleId: roleId || userCompany.roleId,
+          tableTypes: tableTypes || null,
+          productCategories: productCategories || null,
+          orderTypes: orderTypes || null,
+        },
       });
-    } else if (roleId !== undefined && roleId !== userCompany.roleId) {
-      await prisma.userCompany.update({
-        where: { userId_companyId: { userId, companyId: targetCompanyId } },
-        data: { roleId },
-      });
+    } else {
+      const ucUpdateData: Record<string, unknown> = {};
+      if (roleId !== undefined && roleId !== userCompany.roleId) ucUpdateData.roleId = roleId;
+      if (tableTypes !== undefined) ucUpdateData.tableTypes = tableTypes;
+      if (productCategories !== undefined) ucUpdateData.productCategories = productCategories;
+      if (orderTypes !== undefined) ucUpdateData.orderTypes = orderTypes;
+      if (Object.keys(ucUpdateData).length > 0) {
+        await prisma.userCompany.update({
+          where: { userId_companyId: { userId, companyId: targetCompanyId } },
+          data: ucUpdateData,
+        });
+      }
     }
 
     return NextResponse.json({ success: true });

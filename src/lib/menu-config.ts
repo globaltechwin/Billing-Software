@@ -6,7 +6,14 @@ export interface MenuItem {
 
 export const ALL_MENU_ITEMS: MenuItem[] = [
   { label: "Dashboard", path: "/dashboard" },
-  { label: "Billing", path: "/billing" },
+  {
+    label: "Billing",
+    path: "/billing",
+    children: [
+      { label: "Billing", path: "/billing/billing" },
+      { label: "Touch POS", path: "/billing/touch-pos" },
+    ],
+  },
   {
     label: "View Bill",
     path: "/view-bill",
@@ -16,6 +23,7 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
       { label: "Credit Bill Settlement", path: "/view-bill/credit-bill-settlement" },
       { label: "Kitchen Display", path: "/view-bill/kitchen-display" },
       { label: "Delete Bills", path: "/view-bill/delete-bills" },
+      { label: "Held Bills", path: "/view-bill/held-bills" },
     ],
   },
   {
