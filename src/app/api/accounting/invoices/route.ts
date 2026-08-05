@@ -3,19 +3,29 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentCompanyId, getCurrentUserId } from "@/lib/company-context";
 import { generateAccountingInvoiceNumber } from "@/lib/number-generators";
 
+const A4_FIELDS = [
+  "challanNo", "transportationMode", "vehicleNo", "placeOfSupply",
+  "billedToName", "billedToAddress", "billedToGstin", "billedToState", "billedToStateCode",
+  "shippedToName", "shippedToAddress", "shippedToState", "shippedToStateCode",
+  "bankAccountHolder", "bankAccountNumber", "bankIfsc", "bankName", "bankBranch",
+];
+
 function serializeInvoice(inv: Record<string, unknown>): Record<string, unknown> {
   const items = (inv.items as Record<string, unknown>[] || []).map((item) => ({
     id: item.id,
     item: item.item,
     description: item.description || "",
+    unit: item.unit || "",
     qty: Number(item.quantity),
     rate: Number(item.unitPrice),
     amount: Number(item.amount),
   }));
 
-  return {
+  const result: Record<string, unknown> = {
     id: inv.id,
     invoiceNo: inv.invoiceNumber,
+    documentType: inv.documentType || "Invoice",
+    gstType: inv.gstType || "CGST_SGST",
     customerName: inv.customerName,
     status: inv.status,
     issueDate: inv.invoiceDate ? (inv.invoiceDate as Date).toLocaleDateString("en-IN") : "",
@@ -25,13 +35,21 @@ function serializeInvoice(inv: Record<string, unknown>): Record<string, unknown>
     taxAmount: Number(inv.taxAmount),
     total: Number(inv.total),
     paid: Number(inv.paidAmount),
-    customerId: inv.customerId || "",
     items,
     discountType: inv.discountType || "%",
     taxRate: Number(inv.taxRate),
     notes: inv.notes || "",
     terms: inv.terms || "",
   };
+
+  for (const field of A4_FIELDS) {
+    result[field] = inv[field] || "";
+  }
+  result.dateOfSupply = inv.dateOfSupply
+    ? (inv.dateOfSupply as Date).toLocaleDateString("en-IN")
+    : "";
+
+  return result;
 }
 
 export async function GET(request: NextRequest) {
@@ -81,18 +99,19 @@ export async function POST(request: NextRequest) {
     const userId = await getCurrentUserId();
     const body = await request.json();
 
-    const { customerName, status, invoiceDate, dueDate, discount, discountType, taxRate, notes, terms, items, paid } = body;
+    const { customerName, status, invoiceDate, dueDate, discount, discountType, taxRate, notes, terms, items, paid, documentType, gstType } = body;
 
     if (!customerName || !customerName.trim()) {
       return NextResponse.json({ error: "Customer is required" }, { status: 400 });
     }
 
-    const itemRows: { item: string; description: string | null; quantity: number; unitPrice: number; amount: number }[] = (items || []).map((item: Record<string, unknown>) => {
+    const itemRows: { item: string; description: string | null; unit: string | null; quantity: number; unitPrice: number; amount: number }[] = (items || []).map((item: Record<string, unknown>) => {
       const qty = Number(item.qty) || 0;
       const unitPrice = Number(item.rate) || 0;
       return {
         item: String(item.item ?? ""),
         description: item.description ? String(item.description) : null,
+        unit: item.unit ? String(item.unit) : null,
         quantity: qty,
         unitPrice,
         amount: qty * unitPrice,
@@ -109,10 +128,18 @@ export async function POST(request: NextRequest) {
 
     const invoiceNumber = await generateAccountingInvoiceNumber(companyId);
 
+    const a4Data: Record<string, unknown> = {};
+    for (const field of A4_FIELDS) {
+      if (body[field] !== undefined) a4Data[field] = body[field] || null;
+    }
+    if (body.dateOfSupply) a4Data.dateOfSupply = new Date(body.dateOfSupply);
+
     const invoice = await prisma.accountingInvoice.create({
       data: {
         companyId,
         invoiceNumber,
+        documentType: documentType || "Invoice",
+        gstType: gstType || "CGST_SGST",
         customerName: customerName.trim(),
         status: status || "Unpaid",
         invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
@@ -126,6 +153,7 @@ export async function POST(request: NextRequest) {
         paidAmount: Number(paid) || 0,
         notes: notes || null,
         terms: terms || null,
+        ...a4Data,
         createdByUserId: userId,
         updatedByUserId: userId,
         items: { create: itemRows },
@@ -156,6 +184,8 @@ export async function PATCH(request: NextRequest) {
     const data: Record<string, unknown> = { updatedByUserId: userId };
 
     if (body.customerName !== undefined) data.customerName = String(body.customerName).trim();
+    if (body.documentType !== undefined) data.documentType = body.documentType;
+    if (body.gstType !== undefined) data.gstType = body.gstType;
     if (body.status !== undefined) data.status = body.status;
     if (body.invoiceDate !== undefined) data.invoiceDate = body.invoiceDate ? new Date(body.invoiceDate) : null;
     if (body.dueDate !== undefined) data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
@@ -165,6 +195,11 @@ export async function PATCH(request: NextRequest) {
     if (body.terms !== undefined) data.terms = body.terms || null;
     if (body.paid !== undefined) data.paidAmount = Number(body.paid) || 0;
 
+    for (const field of A4_FIELDS) {
+      if (body[field] !== undefined) data[field] = body[field] || null;
+    }
+    if (body.dateOfSupply !== undefined) data.dateOfSupply = body.dateOfSupply ? new Date(body.dateOfSupply) : null;
+
     if (body.items !== undefined) {
       const itemRows = (body.items as Record<string, unknown>[]).map((item) => {
         const qty = Number(item.qty) || 0;
@@ -172,13 +207,14 @@ export async function PATCH(request: NextRequest) {
         return {
           item: String(item.item ?? ""),
           description: item.description ? String(item.description) : null,
+          unit: item.unit ? String(item.unit) : null,
           quantity: qty,
           unitPrice,
           amount: qty * unitPrice,
         };
       });
 
-    const subtotal = itemRows.reduce((sum: number, i: { amount: number }) => sum + Number(i.amount), 0);
+      const subtotal = itemRows.reduce((sum: number, i: { amount: number }) => sum + Number(i.amount), 0);
       const discountAmt = data.discountType === "₹"
         ? Number(body.discount) || 0
         : subtotal * ((Number(body.discount) || 0) / 100);

@@ -11,8 +11,14 @@ import WhatsAppBill from "./WhatsAppBill";
 import BillSummary from "./BillSummary";
 import BillingActions from "./BillingActions";
 import InvoicePrintPreview from "./InvoicePrintPreview";
+import BillingA4PrintPreview from "./BillingA4PrintPreview";
 
-export type BillingMode = "WITH_GST" | "WITH_GST_HIDE" | "WITH_IGST" | "WITHOUT_GST" | "GST_ITEM_WISE";
+export type BillingMode =
+  | "WITH_GST"
+  | "WITH_GST_HIDE"
+  | "WITH_IGST"
+  | "WITHOUT_GST"
+  | "GST_ITEM_WISE";
 
 let nextId = 1;
 
@@ -47,15 +53,25 @@ export default function BillingPage() {
   const [hasQRAccess, setHasQRAccess] = useState(false);
   const [amountGiven, setAmountGiven] = useState(0);
   const [showCustomerForm, setShowCustomerForm] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerData | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerData | null>(
+    null,
+  );
   const [paymentMode, setPaymentMode] = useState("CASH");
   const [salesPerson, setSalesPerson] = useState("");
   const [saving, setSaving] = useState(false);
+  const [companyStateCode, setCompanyStateCode] = useState("");
+  const [defaultBillingMode, setDefaultBillingMode] =
+    useState<BillingMode>("WITH_GST");
   const [billingMode, setBillingMode] = useState<BillingMode>("WITH_GST");
-  const [billType, setBillType] = useState<"INVOICE" | "QUOTATION">("INVOICE");
+  const [billType, setBillType] = useState<"INVOICE" | "QUOTATION" | "A4_BILL">(
+    "INVOICE",
+  );
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [showA4PrintPreview, setShowA4PrintPreview] = useState(false);
   const [printInvoiceId, setPrintInvoiceId] = useState<number | null>(null);
-  const [printDocType, setPrintDocType] = useState<"INVOICE" | "QUOTATION">("INVOICE");
+  const [printDocType, setPrintDocType] = useState<"INVOICE" | "QUOTATION">(
+    "INVOICE",
+  );
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -76,10 +92,14 @@ export default function BillingPage() {
           NO_GST: "WITHOUT_GST",
           GST_ITEM_WISE: "GST_ITEM_WISE",
         };
-        const configuredMode = data.gstSettings.gstEnabled === false
-          ? "WITHOUT_GST"
-          : map[data.gstSettings.gstMode] || "WITH_GST";
+        const configuredMode =
+          data.gstSettings.gstEnabled === false
+            ? "WITHOUT_GST"
+            : map[data.gstSettings.gstMode] || "WITH_GST";
         setBillingMode(configuredMode);
+        setDefaultBillingMode(configuredMode);
+        if (data.gstSettings.gstStateCode)
+          setCompanyStateCode(data.gstSettings.gstStateCode);
       })
       .catch(() => {});
   }, []);
@@ -106,7 +126,9 @@ export default function BillingPage() {
       .then((res) => res.json())
       .then((data) => {
         if (!data.success) return;
-        const bill = data.heldBills.find((h: { id: number }) => h.id === parseInt(resumeId));
+        const bill = data.heldBills.find(
+          (h: { id: number }) => h.id === parseInt(resumeId),
+        );
         if (!bill) {
           alert("Held bill not found");
           return;
@@ -139,15 +161,34 @@ export default function BillingPage() {
       .catch(() => alert("Failed to load held bill"));
   }, [resumeId, router]);
 
-  const isGSTVisible = billingMode === "WITH_GST" || billingMode === "WITH_IGST" || billingMode === "WITH_GST_HIDE" || billingMode === "GST_ITEM_WISE";
+  const isGSTVisible =
+    billingMode === "WITH_GST" ||
+    billingMode === "WITH_IGST" ||
+    billingMode === "WITH_GST_HIDE" ||
+    billingMode === "GST_ITEM_WISE";
   const isGSTHidden = billingMode === "WITH_GST_HIDE";
   const isNoGST = billingMode === "WITHOUT_GST";
-  const isIGST = billingMode === "WITH_IGST";
   const isItemWise = billingMode === "GST_ITEM_WISE";
+  const isIGST = isItemWise
+    ? cart.some(
+        (item) => item.gst.igstPercentage > 0 && item.gst.cgstPercentage === 0,
+      )
+    : billingMode === "WITH_IGST";
 
-  const gstModeAPI = isNoGST ? "NO_GST" : isGSTHidden ? "GST_INCLUDED_HIDDEN" : isIGST ? "GST_IGST" : isItemWise ? "GST_ITEM_WISE" : "GST_VISIBLE";
+  const gstModeAPI = isNoGST
+    ? "NO_GST"
+    : isGSTHidden
+      ? "GST_INCLUDED_HIDDEN"
+      : billingMode === "WITH_IGST"
+        ? "GST_IGST"
+        : isItemWise
+          ? "GST_ITEM_WISE"
+          : "GST_VISIBLE";
 
-  const subtotal = useMemo(() => cart.reduce((s, i) => s + i.price * i.qty, 0), [cart]);
+  const subtotal = useMemo(
+    () => cart.reduce((s, i) => s + i.price * i.qty, 0),
+    [cart],
+  );
 
   const perItemTax = useMemo(() => {
     if (!isItemWise) return 0;
@@ -157,7 +198,11 @@ export default function BillingPage() {
     }, 0);
   }, [cart, isItemWise]);
 
-  const effectiveTax = isNoGST ? taxAmount : isItemWise ? perItemTax : Math.round((subtotal - discAmount) * (gstRate / 100) * 100) / 100;
+  const effectiveTax = isNoGST
+    ? taxAmount
+    : isItemWise
+      ? perItemTax
+      : Math.round((subtotal - discAmount) * (gstRate / 100) * 100) / 100;
   const total = subtotal - discAmount + effectiveTax;
 
   const handleAddProduct = useCallback(
@@ -176,13 +221,14 @@ export default function BillingPage() {
           return prev.map((item) =>
             item.productId === product.id
               ? { ...item, qty: Math.min(item.qty + 1, product.currentStock) }
-              : item
+              : item,
           );
         }
 
-        const productRate = (product.gstApplicable !== false && product.gstMaster)
-          ? Number(product.gstMaster.totalPercentage)
-          : 0;
+        const productRate =
+          product.gstApplicable !== false && product.gstMaster
+            ? Number(product.gstMaster.totalPercentage)
+            : 0;
 
         return [
           ...prev,
@@ -195,19 +241,28 @@ export default function BillingPage() {
             stock: product.currentStock,
             remarks: "",
             gstApplicable: product.gstApplicable ?? true,
-            gst: { gstPercentage: productRate, cgstPercentage: productRate / 2, sgstPercentage: productRate / 2, igstPercentage: productRate, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, taxAmount: 0 },
+            gst: {
+              gstPercentage: productRate,
+              cgstPercentage: productRate / 2,
+              sgstPercentage: productRate / 2,
+              igstPercentage: productRate,
+              cgstAmount: 0,
+              sgstAmount: 0,
+              igstAmount: 0,
+              taxAmount: 0,
+            },
           },
         ];
       });
     },
-    []
+    [],
   );
 
   const handleUpdateQty = useCallback((id: number, qty: number) => {
     setCart((prev) =>
       prev.map((item) =>
-        item.id === id ? { ...item, qty: Math.min(qty, item.stock) } : item
-      )
+        item.id === id ? { ...item, qty: Math.min(qty, item.stock) } : item,
+      ),
     );
   }, []);
 
@@ -219,15 +274,24 @@ export default function BillingPage() {
     setCart((prev) =>
       prev.map((item) =>
         item.id === id
-          ? { ...item, gst: { ...item.gst, gstPercentage: rate, cgstPercentage: rate / 2, sgstPercentage: rate / 2, igstPercentage: rate } }
-          : item
-      )
+          ? {
+              ...item,
+              gst: {
+                ...item.gst,
+                gstPercentage: rate,
+                cgstPercentage: rate / 2,
+                sgstPercentage: rate / 2,
+                igstPercentage: rate,
+              },
+            }
+          : item,
+      ),
     );
   }, []);
 
   const handleUpdateRemarks = useCallback((id: number, remarks: string) => {
     setCart((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, remarks } : item))
+      prev.map((item) => (item.id === id ? { ...item, remarks } : item)),
     );
   }, []);
 
@@ -271,7 +335,9 @@ export default function BillingPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        alert(`Bill held! ${cart.length} items saved as ${data.heldBill.holdNumber}`);
+        alert(
+          `Bill held! ${cart.length} items saved as ${data.heldBill.holdNumber}`,
+        );
         setCart([]);
         setDiscPercent(0);
         setDiscAmount(0);
@@ -286,7 +352,19 @@ export default function BillingPage() {
     } catch {
       alert("Failed to hold bill");
     }
-  }, [cart, selectedCustomer, subtotal, effectiveTax, discAmount, total, gstModeAPI, gstRate, paymentMode, remarks, salesPerson]);
+  }, [
+    cart,
+    selectedCustomer,
+    subtotal,
+    effectiveTax,
+    discAmount,
+    total,
+    gstModeAPI,
+    gstRate,
+    paymentMode,
+    remarks,
+    salesPerson,
+  ]);
 
   const handleTableView = useCallback(() => {
     router.push("/billing/kot");
@@ -324,7 +402,9 @@ export default function BillingPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        alert(`Bill held! ${cart.length} items saved as ${data.heldBill.holdNumber}`);
+        alert(
+          `Bill held! ${cart.length} items saved as ${data.heldBill.holdNumber}`,
+        );
         setCart([]);
         setDiscPercent(0);
         setDiscAmount(0);
@@ -339,7 +419,19 @@ export default function BillingPage() {
     } catch {
       alert("Failed to hold bill");
     }
-  }, [cart, selectedCustomer, subtotal, effectiveTax, discAmount, total, gstModeAPI, gstRate, paymentMode, remarks, salesPerson]);
+  }, [
+    cart,
+    selectedCustomer,
+    subtotal,
+    effectiveTax,
+    discAmount,
+    total,
+    gstModeAPI,
+    gstRate,
+    paymentMode,
+    remarks,
+    salesPerson,
+  ]);
 
   const clearAll = useCallback(() => {
     setCart([]);
@@ -373,7 +465,11 @@ export default function BillingPage() {
           gstMode: gstModeAPI,
           taxRate: isItemWise ? undefined : gstRate,
           discountAmount: discAmount,
-          paymentMode: complimentBill ? "COMPLIMENT" : creditBill ? "CREDIT" : paymentMode,
+          paymentMode: complimentBill
+            ? "COMPLIMENT"
+            : creditBill
+              ? "CREDIT"
+              : paymentMode,
           cashReceived: amountGiven,
           remarks: remarks || undefined,
           salesPerson: salesPerson || undefined,
@@ -384,7 +480,11 @@ export default function BillingPage() {
       if (data.success) {
         setPrintInvoiceId(data.invoice.id);
         setPrintDocType("INVOICE");
-        setShowPrintPreview(true);
+        if (billType === "A4_BILL") {
+          setShowA4PrintPreview(true);
+        } else {
+          setShowPrintPreview(true);
+        }
         clearAll();
       } else {
         alert(data.error || "Failed to save bill");
@@ -394,7 +494,22 @@ export default function BillingPage() {
     } finally {
       setSaving(false);
     }
-  }, [cart, selectedCustomer, discAmount, gstRate, complimentBill, creditBill, paymentMode, amountGiven, remarks, salesPerson, gstModeAPI, isItemWise, clearAll]);
+  }, [
+    cart,
+    selectedCustomer,
+    discAmount,
+    gstRate,
+    complimentBill,
+    creditBill,
+    paymentMode,
+    amountGiven,
+    remarks,
+    salesPerson,
+    gstModeAPI,
+    isItemWise,
+    billType,
+    clearAll,
+  ]);
 
   const handleSaveBill = useCallback(async () => {
     if (cart.length === 0) return;
@@ -416,7 +531,11 @@ export default function BillingPage() {
           gstMode: gstModeAPI,
           taxRate: isItemWise ? undefined : gstRate,
           discountAmount: discAmount,
-          paymentMode: complimentBill ? "COMPLIMENT" : creditBill ? "CREDIT" : paymentMode,
+          paymentMode: complimentBill
+            ? "COMPLIMENT"
+            : creditBill
+              ? "CREDIT"
+              : paymentMode,
           cashReceived: amountGiven,
           remarks: remarks || undefined,
           salesPerson: salesPerson || undefined,
@@ -435,7 +554,21 @@ export default function BillingPage() {
     } finally {
       setSaving(false);
     }
-  }, [cart, selectedCustomer, discAmount, gstRate, complimentBill, creditBill, paymentMode, amountGiven, remarks, salesPerson, gstModeAPI, isItemWise, clearAll]);
+  }, [
+    cart,
+    selectedCustomer,
+    discAmount,
+    gstRate,
+    complimentBill,
+    creditBill,
+    paymentMode,
+    amountGiven,
+    remarks,
+    salesPerson,
+    gstModeAPI,
+    isItemWise,
+    clearAll,
+  ]);
 
   const handleSaveQuotation = useCallback(async () => {
     if (cart.length === 0) return;
@@ -472,7 +605,16 @@ export default function BillingPage() {
     } finally {
       setSaving(false);
     }
-  }, [cart, selectedCustomer, discAmount, gstRate, remarks, gstModeAPI, isItemWise, clearAll]);
+  }, [
+    cart,
+    selectedCustomer,
+    discAmount,
+    gstRate,
+    remarks,
+    gstModeAPI,
+    isItemWise,
+    clearAll,
+  ]);
 
   const handlePrintQuotation = useCallback(async () => {
     if (cart.length === 0) return;
@@ -501,7 +643,11 @@ export default function BillingPage() {
       if (data.success) {
         setPrintInvoiceId(data.estimate.id);
         setPrintDocType("QUOTATION");
-        setShowPrintPreview(true);
+        if (billType === "A4_BILL") {
+          setShowA4PrintPreview(true);
+        } else {
+          setShowPrintPreview(true);
+        }
         clearAll();
       } else {
         alert(data.error || "Failed to save quotation");
@@ -511,7 +657,17 @@ export default function BillingPage() {
     } finally {
       setSaving(false);
     }
-  }, [cart, selectedCustomer, discAmount, gstRate, remarks, gstModeAPI, isItemWise, clearAll]);
+  }, [
+    cart,
+    selectedCustomer,
+    discAmount,
+    gstRate,
+    remarks,
+    gstModeAPI,
+    isItemWise,
+    billType,
+    clearAll,
+  ]);
 
   const handleNoPrint = useCallback(async () => {
     if (billType === "QUOTATION") {
@@ -521,14 +677,27 @@ export default function BillingPage() {
     }
   }, [billType, handleSaveBill, handleSaveQuotation]);
 
-  const handleCustomerSelect = useCallback((customer: CustomerData) => {
-    setSelectedCustomer(customer);
-    setShowCustomerForm(false);
-  }, []);
+  const handleCustomerSelect = useCallback(
+    (customer: CustomerData) => {
+      setSelectedCustomer(customer);
+      setShowCustomerForm(false);
+      if (
+        companyStateCode &&
+        customer.stateCode &&
+        companyStateCode !== customer.stateCode
+      ) {
+        setBillingMode("WITH_IGST");
+      } else if (defaultBillingMode !== "WITH_IGST") {
+        setBillingMode(defaultBillingMode);
+      }
+    },
+    [companyStateCode, defaultBillingMode],
+  );
 
   const handleClearCustomer = useCallback(() => {
     setSelectedCustomer(null);
-  }, []);
+    setBillingMode(defaultBillingMode);
+  }, [defaultBillingMode]);
 
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -570,36 +739,79 @@ export default function BillingPage() {
           {/* Billing Mode + GST Rate */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
             <div className="flex items-center gap-4 flex-wrap">
-              <span className="text-sm font-semibold text-gray-700">Billing Mode:</span>
+              <span className="text-sm font-semibold text-gray-700">
+                Billing Mode:
+              </span>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="billingMode" value="WITH_GST" checked={billingMode === "WITH_GST"} onChange={() => setBillingMode("WITH_GST")} className="w-4 h-4 text-purple-600 focus:ring-purple-500" />
+                  <input
+                    type="radio"
+                    name="billingMode"
+                    value="WITH_GST"
+                    checked={billingMode === "WITH_GST"}
+                    onChange={() => setBillingMode("WITH_GST")}
+                    className="w-4 h-4 text-purple-600 focus:ring-purple-500"
+                  />
                   <span className="text-sm text-gray-700">With GST</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="billingMode" value="WITH_GST_HIDE" checked={billingMode === "WITH_GST_HIDE"} onChange={() => setBillingMode("WITH_GST_HIDE")} className="w-4 h-4 text-purple-600 focus:ring-purple-500" />
-                  <span className="text-sm text-gray-700">With GST (Hide Details)</span>
+                  <input
+                    type="radio"
+                    name="billingMode"
+                    value="WITH_GST_HIDE"
+                    checked={billingMode === "WITH_GST_HIDE"}
+                    onChange={() => setBillingMode("WITH_GST_HIDE")}
+                    className="w-4 h-4 text-purple-600 focus:ring-purple-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    With GST (Hide Details)
+                  </span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="billingMode" value="WITH_IGST" checked={billingMode === "WITH_IGST"} onChange={() => setBillingMode("WITH_IGST")} className="w-4 h-4 text-purple-600 focus:ring-purple-500" />
+                  <input
+                    type="radio"
+                    name="billingMode"
+                    value="WITH_IGST"
+                    checked={billingMode === "WITH_IGST"}
+                    onChange={() => setBillingMode("WITH_IGST")}
+                    className="w-4 h-4 text-purple-600 focus:ring-purple-500"
+                  />
                   <span className="text-sm text-gray-700">With IGST</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="billingMode" value="WITHOUT_GST" checked={billingMode === "WITHOUT_GST"} onChange={() => setBillingMode("WITHOUT_GST")} className="w-4 h-4 text-purple-600 focus:ring-purple-500" />
+                  <input
+                    type="radio"
+                    name="billingMode"
+                    value="WITHOUT_GST"
+                    checked={billingMode === "WITHOUT_GST"}
+                    onChange={() => setBillingMode("WITHOUT_GST")}
+                    className="w-4 h-4 text-purple-600 focus:ring-purple-500"
+                  />
                   <span className="text-sm text-gray-700">Without GST</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="radio" name="billingMode" value="GST_ITEM_WISE" checked={billingMode === "GST_ITEM_WISE"} onChange={() => setBillingMode("GST_ITEM_WISE")} className="w-4 h-4 text-purple-600 focus:ring-purple-500" />
+                  <input
+                    type="radio"
+                    name="billingMode"
+                    value="GST_ITEM_WISE"
+                    checked={billingMode === "GST_ITEM_WISE"}
+                    onChange={() => setBillingMode("GST_ITEM_WISE")}
+                    className="w-4 h-4 text-purple-600 focus:ring-purple-500"
+                  />
                   <span className="text-sm text-gray-700">Item Wise GST</span>
                 </label>
               </div>
               {isGSTVisible && !isItemWise && (
                 <div className="flex items-center gap-2 ml-auto">
-                  <label className="text-sm font-medium text-gray-700">GST %:</label>
+                  <label className="text-sm font-medium text-gray-700">
+                    GST %:
+                  </label>
                   <input
                     type="number"
                     value={gstRate || ""}
-                    onChange={(e) => setGstRate(parseFloat(e.target.value) || 0)}
+                    onChange={(e) =>
+                      setGstRate(parseFloat(e.target.value) || 0)
+                    }
                     className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                     min={0}
                     max={100}
@@ -609,7 +821,9 @@ export default function BillingPage() {
               )}
             </div>
             <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
-              <span className="text-sm font-semibold text-gray-700">Bill Type:</span>
+              <span className="text-sm font-semibold text-gray-700">
+                Bill Type:
+              </span>
               <div className="flex rounded-lg overflow-hidden border border-gray-300">
                 <button
                   onClick={() => setBillType("INVOICE")}
@@ -631,6 +845,16 @@ export default function BillingPage() {
                 >
                   Quotation
                 </button>
+                <button
+                  onClick={() => setBillType("A4_BILL")}
+                  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                    billType === "A4_BILL"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  A4 Bill
+                </button>
               </div>
             </div>
           </div>
@@ -649,6 +873,9 @@ export default function BillingPage() {
               perItemGst={isItemWise}
               onUpdateGstRate={handleUpdateGstRate}
               onItemRemarksChange={handleUpdateRemarks}
+              billType={billType}
+              gstMode={billingMode}
+              billGstRate={gstRate}
             />
           </div>
 
@@ -658,25 +885,65 @@ export default function BillingPage() {
               <div className="flex items-center gap-6 text-sm flex-wrap">
                 {isItemWise ? (
                   <>
-                    <span className="text-gray-600">GST (Item Wise): <span className="font-semibold text-billora-primary">{effectiveTax.toFixed(2)}</span></span>
+                    <span className="text-gray-600">
+                      GST (Item Wise):{" "}
+                      <span className="font-semibold text-billora-primary">
+                        {effectiveTax.toFixed(2)}
+                      </span>
+                    </span>
                     {isIGST ? (
-                      <span className="text-gray-600">IGST: <span className="font-semibold text-gray-800">{effectiveTax.toFixed(2)}</span></span>
+                      <span className="text-gray-600">
+                        IGST:{" "}
+                        <span className="font-semibold text-gray-800">
+                          {effectiveTax.toFixed(2)}
+                        </span>
+                      </span>
                     ) : (
                       <>
-                        <span className="text-gray-600">CGST: <span className="font-semibold text-gray-800">{(effectiveTax / 2).toFixed(2)}</span></span>
-                        <span className="text-gray-600">SGST: <span className="font-semibold text-gray-800">{(effectiveTax / 2).toFixed(2)}</span></span>
+                        <span className="text-gray-600">
+                          CGST:{" "}
+                          <span className="font-semibold text-gray-800">
+                            {(effectiveTax / 2).toFixed(2)}
+                          </span>
+                        </span>
+                        <span className="text-gray-600">
+                          SGST:{" "}
+                          <span className="font-semibold text-gray-800">
+                            {(effectiveTax / 2).toFixed(2)}
+                          </span>
+                        </span>
                       </>
                     )}
                   </>
                 ) : (
                   <>
-                    <span className="text-gray-600">GST ({gstRate}%): <span className="font-semibold text-billora-primary">{effectiveTax.toFixed(2)}</span></span>
+                    <span className="text-gray-600">
+                      GST ({gstRate}%):{" "}
+                      <span className="font-semibold text-billora-primary">
+                        {effectiveTax.toFixed(2)}
+                      </span>
+                    </span>
                     {isIGST ? (
-                      <span className="text-gray-600">IGST: <span className="font-semibold text-gray-800">{effectiveTax.toFixed(2)}</span></span>
+                      <span className="text-gray-600">
+                        IGST:{" "}
+                        <span className="font-semibold text-gray-800">
+                          {effectiveTax.toFixed(2)}
+                        </span>
+                      </span>
                     ) : (
                       <>
-                        <span className="text-gray-600">CGST ({(gstRate / 2).toFixed(1)}%): <span className="font-semibold text-gray-800">{(effectiveTax / 2).toFixed(2)}</span></span>
-                        <span className="text-gray-600">SGST ({(gstRate / 2).toFixed(1)}%): <span className="font-semibold text-gray-800">{(effectiveTax / 2).toFixed(2)}</span></span>
+                        <span className="text-gray-600">
+                          CGST ({(gstRate / 2).toFixed(1)}%):{" "}
+                          <span className="font-semibold text-gray-800">
+                            {(effectiveTax / 2).toFixed(2)}
+                          </span>
+                        </span>
+                        <span className="text-gray-600">
+                          SGST ({(gstRate / 2).toFixed(1)}%):{" "}
+                          <span className="font-semibold text-gray-800">
+                            {(effectiveTax / 2).toFixed(2)}
+                          </span>
+                        </span>
                       </>
                     )}
                   </>
@@ -697,19 +964,40 @@ export default function BillingPage() {
           ) : selectedCustomer ? (
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold text-gray-700">Customer</span>
-                <button onClick={handleClearCustomer} className="text-xs text-red-500 hover:text-red-600">Change</button>
+                <span className="text-sm font-semibold text-gray-700">
+                  Customer
+                </span>
+                <button
+                  onClick={handleClearCustomer}
+                  className="text-xs text-red-500 hover:text-red-600"
+                >
+                  Change
+                </button>
               </div>
               <div className="space-y-1 text-sm">
-                {selectedCustomer.name && <p className="font-medium text-gray-800">{selectedCustomer.name}</p>}
-                {selectedCustomer.mobile && <p className="text-gray-500">{selectedCustomer.mobile}</p>}
+                {selectedCustomer.name && (
+                  <p className="font-medium text-gray-800">
+                    {selectedCustomer.name}
+                  </p>
+                )}
+                {selectedCustomer.mobile && (
+                  <p className="text-gray-500">{selectedCustomer.mobile}</p>
+                )}
                 {selectedCustomer.address && (
-                  <p className="text-gray-400 text-xs">{selectedCustomer.address}{selectedCustomer.landmark ? `, ${selectedCustomer.landmark}` : ""}</p>
+                  <p className="text-gray-400 text-xs">
+                    {selectedCustomer.address}
+                    {selectedCustomer.landmark
+                      ? `, ${selectedCustomer.landmark}`
+                      : ""}
+                  </p>
                 )}
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowCustomerForm(true)} className="w-full bg-gradient-to-r from-blue-500 to-blue-400 hover:from-blue-600 hover:to-blue-500 text-white text-sm font-semibold py-3 rounded-xl shadow-sm transition-colors">
+            <button
+              onClick={() => setShowCustomerForm(true)}
+              className="w-full bg-gradient-to-r from-blue-500 to-blue-400 hover:from-blue-600 hover:to-blue-500 text-white text-sm font-semibold py-3 rounded-xl shadow-sm transition-colors"
+            >
               Add Customer+
             </button>
           )}
@@ -740,40 +1028,95 @@ export default function BillingPage() {
 
           {/* WhatsApp Bill */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
-            <WhatsAppBill enabled={whatsappEnabled} onToggle={setWhatsappEnabled} />
+            <WhatsAppBill
+              enabled={whatsappEnabled}
+              onToggle={setWhatsappEnabled}
+            />
           </div>
 
           {/* QR Code Toggle */}
           {hasQRAccess && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
-            <div className="flex items-center gap-2">
-              <input type="checkbox" checked={showQR} onChange={(e) => setShowQR(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 flex-shrink-0" />
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                <rect x="3" y="3" width="7" height="7" />
-                <rect x="14" y="3" width="7" height="7" />
-                <rect x="3" y="14" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-              </svg>
-              <span className="text-xs text-purple-600 font-medium">Show UPI QR on Bill</span>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showQR}
+                  onChange={(e) => setShowQR(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 flex-shrink-0"
+                />
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#7c3aed"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="flex-shrink-0"
+                >
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" />
+                </svg>
+                <span className="text-xs text-purple-600 font-medium">
+                  Show UPI QR on Bill
+                </span>
+              </div>
             </div>
-          </div>
           )}
 
           {/* Bill Summary */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-            <BillSummary total={total} amountGiven={amountGiven} onAmountGivenChange={setAmountGiven} />
+            <BillSummary
+              total={total}
+              amountGiven={amountGiven}
+              onAmountGivenChange={setAmountGiven}
+            />
           </div>
 
           {/* Actions */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
-            <BillingActions onPrint={handlePrint} onHold={handleHold} onNoPrint={handleNoPrint} onSaveBill={handleSaveBill} onSaveQuotation={handleSaveQuotation} onPrintQuotation={handlePrintQuotation} billType={billType} saving={saving} canSave={cart.length > 0} />
+            <BillingActions
+              onPrint={handlePrint}
+              onHold={handleHold}
+              onNoPrint={handleNoPrint}
+              onSaveBill={handleSaveBill}
+              onSaveQuotation={handleSaveQuotation}
+              onPrintQuotation={handlePrintQuotation}
+              billType={billType}
+              saving={saving}
+              canSave={cart.length > 0}
+            />
           </div>
         </div>
       </div>
 
       {/* Print Preview Modal */}
       {showPrintPreview && printInvoiceId && (
-        <InvoicePrintPreview invoiceId={printInvoiceId} onClose={() => { setShowPrintPreview(false); setPrintInvoiceId(null); }} showQR={showQR} docType={printDocType} />
+        <InvoicePrintPreview
+          invoiceId={printInvoiceId}
+          onClose={() => {
+            setShowPrintPreview(false);
+            setPrintInvoiceId(null);
+          }}
+          showQR={showQR}
+          docType={printDocType}
+        />
+      )}
+
+      {/* A4 Print Preview Modal */}
+      {showA4PrintPreview && printInvoiceId && (
+        <BillingA4PrintPreview
+          invoiceId={printInvoiceId}
+          onClose={() => {
+            setShowA4PrintPreview(false);
+            setPrintInvoiceId(null);
+          }}
+          showQR={showQR}
+          docType={printDocType}
+        />
       )}
     </div>
   );

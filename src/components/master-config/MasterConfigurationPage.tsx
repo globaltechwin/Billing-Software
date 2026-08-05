@@ -24,6 +24,11 @@ interface CompanySettings {
   country: string | null;
   pincode: string | null;
   website: string | null;
+  bankAccountHolder: string | null;
+  bankAccountNumber: string | null;
+  bankIfsc: string | null;
+  bankName: string | null;
+  bankBranch: string | null;
   defaultBillingMode: string | null;
   invoicePrefix: string | null;
   estimatePrefix: string | null;
@@ -123,10 +128,11 @@ export default function MasterConfigurationPage() {
     if (!settings) return;
     setSaving(true);
     try {
+      const { logo: _logo, ...patchData } = settings;
       const res = await fetch("/api/company/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(patchData),
       });
       const data = await res.json();
       if (data.success) {
@@ -348,6 +354,16 @@ function CompanyInfoTab({ settings, updateField }: { settings: CompanySettings; 
             options={INDIAN_STATES.map((s) => ({ value: s.code, label: `${s.code} - ${s.name}` }))}
           />
           <InputField label="State Name" value={settings.stateName} onChange={(v) => updateField("stateName", v)} />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Bank Details (for A4 Bill Print)">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <InputField label="Account Holder Name" value={settings.bankAccountHolder} onChange={(v) => updateField("bankAccountHolder", v)} />
+          <InputField label="Account Number" value={settings.bankAccountNumber} onChange={(v) => updateField("bankAccountNumber", v)} />
+          <InputField label="IFSC Code" value={settings.bankIfsc} onChange={(v) => updateField("bankIfsc", v)} />
+          <InputField label="Bank Name" value={settings.bankName} onChange={(v) => updateField("bankName", v)} />
+          <InputField label="Branch" value={settings.bankBranch} onChange={(v) => updateField("bankBranch", v)} />
         </div>
       </SectionCard>
     </div>

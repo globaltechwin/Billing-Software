@@ -148,7 +148,18 @@ export async function generateQuoteNumber(companyId: number): Promise<string> {
 }
 
 export async function generateAccountingInvoiceNumber(companyId: number): Promise<string> {
-  return getNextNumber(companyId, "accountingInvoice", "INV-", 4);
+  const lastRecord = await prisma.accountingInvoice.findFirst({
+    orderBy: { id: "desc" },
+    select: { invoiceNumber: true },
+  });
+
+  let nextNum = 1;
+  if (lastRecord?.invoiceNumber) {
+    const match = lastRecord.invoiceNumber.match(/(\d+)$/);
+    if (match) nextNum = parseInt(match[1], 10) + 1;
+  }
+
+  return `INV-${String(nextNum).padStart(4, "0")}`;
 }
 
 export async function generateHoldNumber(companyId: number): Promise<string> {

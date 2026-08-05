@@ -89,6 +89,14 @@ export async function GET(
           phone: invoice.company.phone,
           email: invoice.company.email,
           logo: invoice.company.logo,
+          panNumber: invoice.company.panNumber,
+          city: invoice.company.city,
+          pincode: invoice.company.pincode,
+          bankAccountHolder: invoice.company.bankAccountHolder,
+          bankAccountNumber: invoice.company.bankAccountNumber,
+          bankIfsc: invoice.company.bankIfsc,
+          bankName: invoice.company.bankName,
+          bankBranch: invoice.company.bankBranch,
         },
         customer: invoice.customer
           ? {

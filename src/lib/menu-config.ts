@@ -168,8 +168,9 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
       { label: "Acc Dashboard", path: "/accounting/dashboard" },
       { label: "Quote", path: "/accounting/quote" },
       { label: "Invoice", path: "/accounting/invoice" },
+      { label: "A4 Invoice", path: "/accounting/a4-invoice" },
+      { label: "A4 Invoice List", path: "/accounting/a4-invoice-list" },
       { label: "Quote Template", path: "/accounting/quote-template" },
-      { label: "Template Preview", path: "/accounting/template-preview" },
     ],
   },
 ];

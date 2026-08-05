@@ -218,8 +218,9 @@ const NAV_ITEMS: NavItemWithSubmenu[] = [
       { label: "Acc Dashboard", href: "/accounting/dashboard" },
       { label: "Quote", href: "/accounting/quote" },
       { label: "Invoice", href: "/accounting/invoice" },
+      { label: "A4 Invoice", href: "/accounting/a4-invoice" },
+      { label: "A4 Invoice List", href: "/accounting/a4-invoice-list" },
       { label: "Quote Template", href: "/accounting/quote-template" },
-      { label: "Template Preview", href: "/accounting/template-preview" },
     ],
   },
 ];
