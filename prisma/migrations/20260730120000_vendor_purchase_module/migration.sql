@@ -7,6 +7,7 @@ ALTER TABLE `product` ADD COLUMN `maximumStock` DECIMAL(10,2) NOT NULL DEFAULT 0
 ALTER TABLE `product` ADD COLUMN `reorderLevel` DECIMAL(10,2) NOT NULL DEFAULT 0;
 
 -- 2. Vendor table
+
 CREATE TABLE `vendor` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `companyId` INT NOT NULL,
