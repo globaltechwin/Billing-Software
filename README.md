@@ -1,262 +1,97 @@
-ipconfig getifaddr en0
-
 # Billora Backend Documentation
 
 ## Project Overview
 
-Billora is a billing and business management application built with:
+Billora is a billing and business management application with a backend built on:
 
 - Next.js
 - TypeScript
 - Prisma ORM
-- MySQL Database
-- MySQL Workbench
+- MySQL
 
-The backend is designed to support multiple business types with features like:
+The backend supports billing, inventory, sales, accounting, cash flow, GST management, reporting, and role-based access control.
 
-- Billing
-- Inventory
-- Sales
-- Accounting
-- Cash Flow
-- GST Management
-- Reports
-- User Role Management
+## Architecture
 
----
+The backend architecture includes:
 
-# Backend Architecture
+- Next.js API routes
+- Prisma ORM for database access
+- MySQL as the persistent data store
 
-```
-Frontend (Next.js)
-        |
-        |
-API Routes
-        |
-        |
-Prisma ORM
-        |
-        |
-MySQL Database
-        |
-        |
-MySQL Workbench
+## Setup
+
+1. Install dependencies:
+
+```bash
+bun install
 ```
 
-Prisma acts as the database layer between the application and MySQL.
+2. Configure environment variables in `.env`:
 
----
-
-# Database Setup
-
-## Database Name
-
-```
-billora
-```
-
-## Database Tool
-
-MySQL Workbench
-
-## ORM
-
-Prisma
-
-## Prisma Commands Used
-
-Install Prisma:
-
-```
-bun add prisma @prisma/client
-```
-
-Initialize Prisma:
-
-```
-bunx prisma init
-```
-
-Migration:
-
-```
-bunx prisma migrate dev
-```
-
-Generate Prisma Client:
-
-```
-bunx prisma generate
-```
-
-Seed Database:
-
-```
-bunx prisma db seed
-```
-
----
-
-# Environment Configuration
-
-File:
-
-```
-.env
-```
-
-Database connection:
-
-```
+```env
 DATABASE_URL="mysql://username:password@localhost:3306/billora"
 ```
 
----
+3. Run Prisma migrations:
 
-# Authentication System
+```bash
+bunx prisma migrate dev
+```
 
-Authentication has been implemented using:
+4. Generate Prisma Client:
 
-- Prisma
-- MySQL
+```bash
+bunx prisma generate
+```
+
+5. Seed the database:
+
+```bash
+bunx prisma db seed
+```
+
+## Authentication
+
+The project uses Prisma with MySQL for authentication, including:
+
 - bcrypt password hashing
 - JWT authentication
-- HTTP Only Cookies
+- HTTP-only cookies
 
----
+## Role-based Access
 
-# Authentication Flow
+Implemented roles include:
 
-```
-User Login
-    |
-    |
-Username + Password
-    |
-    |
-Login API
-    |
-    |
-Check User in MySQL
-    |
-    |
-Verify Password
-    |
-    |
-Find User Role
-    |
-    |
-Fetch Permissions
-    |
-    |
-Create JWT Token
-    |
-    |
-Set Authentication Cookie
-    |
-    |
-Redirect User
-```
+- Owner
+- Admin
+- User
+- Delivery
 
----
+Each role has access to different application modules and permissions.
 
-# User Roles Implemented
+## Database Models
 
-Current roles:
+Key models include:
 
-## Owner
+- `User`
+- `Role`
+- `Company`
+- `Product`
+- `Invoice`
+- `Expense`
+- `VendorPayment`
+- `ProductionPlan`
+- `ProductionIn`
+- `ProductionOut`
+- `Wastage`
+- `Whatsapp` templates and balance models
 
-Access:
+## Notes
 
-```
-All Modules
-```
-
----
-
-## Admin
-
-Access:
-
-```
-Dashboard
-Billing
-View Bill
-Inventory
-Master
-Reports
-Production
-Sales
-WhatsApp
-Events
-Cash Flow
-Accounting
-```
-
----
-
-## User
-
-Restricted Access:
-
-```
-Dashboard
-Billing
-View Bill
-Reports
-```
-
----
-
-## Delivery
-
-Restricted Access:
-
-```
-Dashboard
-View Bill
-```
-
----
-
-# Database Models Created
-
-## User Model
-
-Purpose:
-
-Stores application users.
-
-Fields:
-
-```
-id
-username
-password
-name
-roleId
-createdAt
-updatedAt
-```
-
----
-
-## Role Model
-
-Purpose:
-
-Stores user roles.
-
-Example:
-
-```
-Owner
-Admin
-User
-Delivery
-```
-
----
+- Prisma is the main ORM layer between the application and MySQL.
+- Use MySQL Workbench or another client to inspect the `billora` database.
+- This README focuses on backend setup and core architecture.
 
 ## Permission Model
 
@@ -622,26 +457,6 @@ bunx prisma generate
 6. Create API routes
 
 7. Connect frontend
-
----
-
-# Current Progress
-
-```
-Authentication          ✅
-Role Management         ✅
-Permission System       ✅
-Prisma Setup            ✅
-MySQL Connection        ✅
-
-GST Master              Pending
-Company Setup           Pending
-Customer Master         Pending
-Product Master          Pending
-Billing Backend         Pending
-Inventory Backend      Pending
-Accounting Backend     Pending
-```
 
 ---
 
