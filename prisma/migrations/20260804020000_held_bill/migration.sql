@@ -27,4 +27,4 @@ CREATE TABLE `held_bill` (
 ALTER TABLE `held_bill` ADD CONSTRAINT `held_bill_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `held_bill` ADD CONSTRAINT `held_bill_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `held_bill` ADD CONSTRAINT `held_bill_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

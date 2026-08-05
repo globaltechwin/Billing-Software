@@ -58,6 +58,8 @@ CREATE TABLE `cash_transaction` (
     UNIQUE INDEX `cash_transaction_transactionId_key`(`transactionId`),
     INDEX `cash_transaction_companyId_idx`(`companyId`),
     INDEX `cash_transaction_transactionDate_idx`(`transactionDate`),
+    INDEX `cash_transaction_categoryId_idx`(`categoryId`),
+    INDEX `cash_transaction_accountId_idx`(`accountId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

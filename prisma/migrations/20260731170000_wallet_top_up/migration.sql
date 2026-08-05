@@ -29,4 +29,4 @@ CREATE INDEX `wallet_transaction_createdByUserId_fkey` ON `wallet_transaction`(`
 -- AddForeignKey
 ALTER TABLE `wallet_transaction` ADD CONSTRAINT `wallet_transaction_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE `wallet_transaction` ADD CONSTRAINT `wallet_transaction_customerId_fkey` FOREIGN KEY (`customerId`) REFERENCES `customer`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE `wallet_transaction` ADD CONSTRAINT `wallet_transaction_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `wallet_transaction` ADD CONSTRAINT `wallet_transaction_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

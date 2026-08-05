@@ -1,4 +1,4 @@
---CreateTable
+-- CreateTable
 CREATE TABLE `quote` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `companyId` INTEGER NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE `quote` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
---CreateTable
+-- CreateTable
 CREATE TABLE `quote_item` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `quoteId` INTEGER NOT NULL,
@@ -38,14 +38,14 @@ CREATE TABLE `quote_item` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
---AddForeignKey
+-- AddForeignKey
 ALTER TABLE `quote` ADD CONSTRAINT `quote_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
---AddForeignKey
+-- AddForeignKey
 ALTER TABLE `quote` ADD CONSTRAINT `quote_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
---AddForeignKey
+-- AddForeignKey
 ALTER TABLE `quote` ADD CONSTRAINT `quote_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
---AddForeignKey
+-- AddForeignKey
 ALTER TABLE `quote_item` ADD CONSTRAINT `quote_item_quoteId_fkey` FOREIGN KEY (`quoteId`) REFERENCES `quote`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

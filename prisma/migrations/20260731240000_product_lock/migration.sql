@@ -13,7 +13,7 @@ CREATE INDEX `Product_billLockedByUserId_fkey` ON `product`(`billLockedByUserId`
 CREATE INDEX `Product_onlineLockedByUserId_fkey` ON `product`(`onlineLockedByUserId`);
 
 -- AddForeignKey
-ALTER TABLE `product` ADD CONSTRAINT `Product_billLockedByUserId_fkey` FOREIGN KEY (`billLockedByUserId`) REFERENCES `user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `product` ADD CONSTRAINT `Product_billLockedByUserId_fkey` FOREIGN KEY (`billLockedByUserId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `product` ADD CONSTRAINT `Product_onlineLockedByUserId_fkey` FOREIGN KEY (`onlineLockedByUserId`) REFERENCES `user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `product` ADD CONSTRAINT `Product_onlineLockedByUserId_fkey` FOREIGN KEY (`onlineLockedByUserId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

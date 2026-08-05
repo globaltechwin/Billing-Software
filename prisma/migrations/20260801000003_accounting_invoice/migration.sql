@@ -1,4 +1,4 @@
---CreateTable
+-- CreateTable
 CREATE TABLE `accounting_invoice` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `companyId` INTEGER NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE `accounting_invoice` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
---CreateTable
+-- CreateTable
 CREATE TABLE `accounting_invoice_item` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `accountingInvoiceId` INTEGER NOT NULL,
@@ -42,14 +42,14 @@ CREATE TABLE `accounting_invoice_item` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
---AddForeignKey
+-- AddForeignKey
 ALTER TABLE `accounting_invoice` ADD CONSTRAINT `accounting_invoice_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
---AddForeignKey
+-- AddForeignKey
 ALTER TABLE `accounting_invoice` ADD CONSTRAINT `accounting_invoice_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
---AddForeignKey
+-- AddForeignKey
 ALTER TABLE `accounting_invoice` ADD CONSTRAINT `accounting_invoice_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
---AddForeignKey
+-- AddForeignKey
 ALTER TABLE `accounting_invoice_item` ADD CONSTRAINT `accounting_invoice_item_accountingInvoiceId_fkey` FOREIGN KEY (`accountingInvoiceId`) REFERENCES `accounting_invoice`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

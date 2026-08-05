@@ -47,10 +47,10 @@ ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_itemId_fkey`
 ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `product`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- CreateTable
 CREATE TABLE `production_conversion` (
@@ -85,7 +85,7 @@ ALTER TABLE `production_conversion` ADD CONSTRAINT `production_conversion_compan
 ALTER TABLE `production_conversion` ADD CONSTRAINT `production_conversion_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `product`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `production_conversion` ADD CONSTRAINT `production_conversion_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `production_conversion` ADD CONSTRAINT `production_conversion_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `production_conversion` ADD CONSTRAINT `production_conversion_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `production_conversion` ADD CONSTRAINT `production_conversion_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

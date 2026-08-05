@@ -19,6 +19,9 @@ CREATE TABLE `wa_campaign` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- CreateIndex
+CREATE INDEX `wa_campaign_companyId_idx` ON `wa_campaign`(`companyId`);
+
 -- CreateTable
 CREATE TABLE `wa_campaign_item` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
@@ -32,6 +35,12 @@ CREATE TABLE `wa_campaign_item` (
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateIndex
+CREATE INDEX `wa_campaign_item_campaignId_idx` ON `wa_campaign_item`(`campaignId`);
+
+-- CreateIndex
+CREATE INDEX `wa_campaign_item_customerId_idx` ON `wa_campaign_item`(`customerId`);
 
 -- AddForeignKey
 ALTER TABLE `wa_campaign` ADD CONSTRAINT `wa_campaign_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

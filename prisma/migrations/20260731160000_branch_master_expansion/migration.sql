@@ -22,5 +22,5 @@ CREATE UNIQUE INDEX `branch_companyId_branchName_key` ON `branch`(`companyId`, `
 CREATE UNIQUE INDEX `branch_companyId_branchCode_key` ON `branch`(`companyId`, `branchCode`);
 
 -- AddForeignKey
-ALTER TABLE `branch` ADD CONSTRAINT `branch_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE `branch` ADD CONSTRAINT `branch_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `branch` ADD CONSTRAINT `branch_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `branch` ADD CONSTRAINT `branch_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;

@@ -12,3 +12,6 @@ CREATE TABLE `notification` (
     INDEX `notification_companyId_createdAt_idx`(`companyId`, `createdAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `notification` ADD CONSTRAINT `notification_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

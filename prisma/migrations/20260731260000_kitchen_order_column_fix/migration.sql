@@ -1,31 +1,54 @@
--- Fix kitchen_order / kitchen_order_item columns to match Prisma schema (camelCase).
--- Tables were previously created with hand-written snake_case DDL that did not match the schema.
+-- CreateTable
+CREATE TABLE `kitchen_order` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `kotNumber` VARCHAR(191) NOT NULL,
+  `companyId` INT NOT NULL,
+  `invoiceId` INT NOT NULL,
+  `invoiceNumber` VARCHAR(191) NOT NULL,
+  `customerId` INT NULL,
+  `customerName` VARCHAR(191) NULL,
+  `orderType` ENUM('DINE_IN','TAKE_AWAY','DELIVERY') NOT NULL DEFAULT 'DINE_IN',
+  `orderStatus` ENUM('NEW','ACCEPTED','PREPARING','READY','SERVED') NOT NULL DEFAULT 'NEW',
+  `priority` ENUM('LOW','NORMAL','HIGH','URGENT') NOT NULL DEFAULT 'NORMAL',
+  `tableNumber` VARCHAR(191) NULL,
+  `tokenNumber` VARCHAR(191) NULL,
+  `orderTime` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `acceptedTime` DATETIME(3) NULL,
+  `preparingTime` DATETIME(3) NULL,
+  `readyTime` DATETIME(3) NULL,
+  `servedTime` DATETIME(3) NULL,
+  `notes` VARCHAR(191) NULL,
+  `createdByUserId` INT NOT NULL,
+  `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updatedAt` DATETIME(3) NOT NULL,
 
-ALTER TABLE `kitchen_order`
-  RENAME COLUMN `kot_number` TO `kotNumber`,
-  RENAME COLUMN `company_id` TO `companyId`,
-  RENAME COLUMN `invoice_id` TO `invoiceId`,
-  RENAME COLUMN `invoice_number` TO `invoiceNumber`,
-  RENAME COLUMN `customer_id` TO `customerId`,
-  RENAME COLUMN `customer_name` TO `customerName`,
-  RENAME COLUMN `order_type` TO `orderType`,
-  RENAME COLUMN `order_status` TO `orderStatus`,
-  RENAME COLUMN `table_number` TO `tableNumber`,
-  RENAME COLUMN `token_number` TO `tokenNumber`,
-  RENAME COLUMN `order_time` TO `orderTime`,
-  RENAME COLUMN `accepted_time` TO `acceptedTime`,
-  RENAME COLUMN `preparing_time` TO `preparingTime`,
-  RENAME COLUMN `ready_time` TO `readyTime`,
-  RENAME COLUMN `served_time` TO `servedTime`,
-  RENAME COLUMN `created_by_user_id` TO `createdByUserId`,
-  RENAME COLUMN `created_at` TO `createdAt`,
-  RENAME COLUMN `updated_at` TO `updatedAt`;
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `kitchen_order_kotNumber_key`(`kotNumber`),
+  UNIQUE INDEX `kitchen_order_companyId_kotNumber_key`(`companyId`, `kotNumber`),
+  INDEX `kitchen_order_companyId_fkey`(`companyId`),
+  INDEX `kitchen_order_invoiceId_fkey`(`invoiceId`),
+  INDEX `kitchen_order_createdByUserId_fkey`(`createdByUserId`),
+  CONSTRAINT `kitchen_order_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `kitchen_order_invoiceId_fkey` FOREIGN KEY (`invoiceId`) REFERENCES `invoice`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `kitchen_order_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-ALTER TABLE `kitchen_order_item`
-  RENAME COLUMN `kitchen_order_id` TO `kitchenOrderId`,
-  RENAME COLUMN `product_id` TO `productId`,
-  RENAME COLUMN `product_name_snapshot` TO `productNameSnapshot`,
-  RENAME COLUMN `item_status` TO `itemStatus`,
-  RENAME COLUMN `special_instructions` TO `specialInstructions`,
-  RENAME COLUMN `created_at` TO `createdAt`,
-  RENAME COLUMN `updated_at` TO `updatedAt`;
+-- CreateTable
+CREATE TABLE `kitchen_order_item` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `kitchenOrderId` INT NOT NULL,
+  `productId` INT NOT NULL,
+  `productNameSnapshot` VARCHAR(191) NOT NULL,
+  `quantity` DECIMAL(10, 2) NOT NULL,
+  `unit` VARCHAR(191) NULL,
+  `specialInstructions` VARCHAR(191) NULL,
+  `itemStatus` ENUM('NEW','ACCEPTED','PREPARING','READY','SERVED') NOT NULL DEFAULT 'NEW',
+  `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updatedAt` DATETIME(3) NOT NULL,
+
+  PRIMARY KEY (`id`),
+  INDEX `kitchen_order_item_kitchenOrderId_fkey`(`kitchenOrderId`),
+  INDEX `kitchen_order_item_productId_fkey`(`productId`),
+  CONSTRAINT `kitchen_order_item_kitchenOrderId_fkey` FOREIGN KEY (`kitchenOrderId`) REFERENCES `kitchen_order`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `kitchen_order_item_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `product`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

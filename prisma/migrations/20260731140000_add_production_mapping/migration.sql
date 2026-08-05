@@ -62,10 +62,10 @@ ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_companyId_fk
 ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_productId_fkey` FOREIGN KEY (`productId`) REFERENCES `product`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `production_mapping` ADD CONSTRAINT `production_mapping_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `production_mapping_item` ADD CONSTRAINT `production_mapping_item_mappingId_fkey` FOREIGN KEY (`mappingId`) REFERENCES `production_mapping`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

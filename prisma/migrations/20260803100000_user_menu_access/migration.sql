@@ -9,7 +9,6 @@ CREATE TABLE `UserMenuAccess` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `UserMenuAccess_userId_companyId_menuPath_key`(`userId`, `companyId`, `menuPath`),
-    INDEX `UserMenuAccess_userId_companyId_idx`(`userId`, `companyId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -17,4 +16,4 @@ CREATE TABLE `UserMenuAccess` (
 ALTER TABLE `UserMenuAccess` ADD CONSTRAINT `UserMenuAccess_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `UserMenuAccess` ADD CONSTRAINT `UserMenuAccess_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `Company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `UserMenuAccess` ADD CONSTRAINT `UserMenuAccess_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

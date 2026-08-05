@@ -30,6 +30,9 @@ CREATE TABLE `backup_job` (
   INDEX `backup_job_scheduledAt_idx` (`scheduledAt`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- AddForeignKey
+ALTER TABLE `backup_job` ADD CONSTRAINT `backup_job_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
 CREATE TABLE `cloud_backup` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `companyId` INT NOT NULL,
@@ -48,3 +51,6 @@ CREATE TABLE `cloud_backup` (
   INDEX `cloud_backup_backupId_idx` (`backupId`),
   INDEX `cloud_backup_status_idx` (`status`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `cloud_backup` ADD CONSTRAINT `cloud_backup_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
