@@ -50,12 +50,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "userId, companyId, blockedPaths[] required" }, { status: 400 });
     }
 
-    // Only owner/admin of the company can set permissions
-    const callerCompany = await prisma.userCompany.findFirst({
-      where: { userId: ctx.userId, companyId },
-      include: { role: true },
+    // Caller must be Owner or Admin in any of their companies
+    const callerCompanyRoles = await prisma.userCompany.findMany({
+      where: { userId: ctx.userId },
+      include: { role: { select: { name: true } } },
     });
-    if (!callerCompany || !["Owner", "Admin"].includes(callerCompany.role.name)) {
+    const isCallerPrivileged = callerCompanyRoles.some(
+      (uc) => ["Owner", "Admin"].includes(uc.role.name)
+    );
+    if (!isCallerPrivileged) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
