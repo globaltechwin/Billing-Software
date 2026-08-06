@@ -20,7 +20,7 @@ CREATE TABLE `day_closing` (
 
   CONSTRAINT `DayClosing_companyId_fkey` FOREIGN KEY (`companyId`) REFERENCES `company` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `DayClosing_branchId_fkey` FOREIGN KEY (`branchId`) REFERENCES `branch` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `DayClosing_closedByUserId_fkey` FOREIGN KEY (`closedByUserId`) REFERENCES `user` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `DayClosing_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
-  CONSTRAINT `DayClosing_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `user` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+  CONSTRAINT `DayClosing_closedByUserId_fkey` FOREIGN KEY (`closedByUserId`) REFERENCES `User` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `DayClosing_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `User` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `DayClosing_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `User` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

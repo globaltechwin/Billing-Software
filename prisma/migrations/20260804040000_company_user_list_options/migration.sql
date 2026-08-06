@@ -1,5 +1,5 @@
 -- AlterTable: Company
-ALTER TABLE `Company` ADD COLUMN `tableTypes` JSON NULL,
+ALTER TABLE `company` ADD COLUMN `tableTypes` JSON NULL,
                       ADD COLUMN `orderTypes` JSON NULL,
                       ADD COLUMN `productCategories` JSON NULL;
 

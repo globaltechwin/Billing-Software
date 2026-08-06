@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE `Company` ADD COLUMN `licenseDate` DATETIME(3) NULL;
+ALTER TABLE `company` ADD COLUMN `licenseDate` DATETIME(3) NULL;
