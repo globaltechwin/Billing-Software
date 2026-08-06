@@ -50,15 +50,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "userId, companyId, blockedPaths[] required" }, { status: 400 });
     }
 
-    // Only superadmin (23) or owner/admin of the company can set permissions
-    if (ctx.userId !== 23) {
-      const userCompany = await prisma.userCompany.findFirst({
-        where: { userId: ctx.userId, companyId },
-        include: { role: true },
-      });
-      if (!userCompany || !["Owner", "Admin"].includes(userCompany.role.name)) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-      }
+    // Only owner/admin of the company can set permissions
+    const callerCompany = await prisma.userCompany.findFirst({
+      where: { userId: ctx.userId, companyId },
+      include: { role: true },
+    });
+    if (!callerCompany || !["Owner", "Admin"].includes(callerCompany.role.name)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Delete existing records for this user+company

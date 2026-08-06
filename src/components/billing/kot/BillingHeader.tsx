@@ -18,8 +18,13 @@ export default function BillingHeader() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.success) {
-          const paths = data.allowedMenuPaths || [];
-          setCanTouchPOS(paths.includes("/billing/touch-pos"));
+          // allowedMenuPaths is null when no restrictions exist (all menus allowed)
+          const paths = data.allowedMenuPaths;
+          if (paths === null || paths === undefined) {
+            setCanTouchPOS(true);
+          } else {
+            setCanTouchPOS(paths.includes("/billing/touch-pos"));
+          }
         }
       })
       .catch(() => { /* empty */ });
