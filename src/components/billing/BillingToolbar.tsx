@@ -1,5 +1,7 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Maximize2, Minimize2 } from "lucide-react";
 import {
   useCompanyBranding,
@@ -21,6 +23,24 @@ export default function BillingToolbar({
 }: BillingToolbarProps) {
   const { companyName } = useCompanyBranding();
   const companyColors = getCompanyColors(companyName);
+  const router = useRouter();
+  const [canTouchPOS, setCanTouchPOS] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/my-menu-access")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.success) {
+          const paths = data.allowedMenuPaths;
+          if (paths === null || paths === undefined) {
+            setCanTouchPOS(true);
+          } else {
+            setCanTouchPOS(paths.includes("/billing/touch-pos"));
+          }
+        }
+      })
+      .catch(() => { /* empty */ });
+  }, []);
   return (
     <div className="flex items-center justify-between flex-wrap gap-3">
       {/* Company Name */}
@@ -54,6 +74,16 @@ export default function BillingToolbar({
             F7
           </span>
         </button>
+
+        {/* Touch POS */}
+        {canTouchPOS && (
+          <button
+            onClick={() => router.push("/touch-pos")}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-blue-500 to-blue-400 text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-sm"
+          >
+            Touch POS
+          </button>
+        )}
 
         {/* Table View F6 */}
         <button
