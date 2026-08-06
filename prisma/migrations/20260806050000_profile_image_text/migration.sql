@@ -1,0 +1,1 @@
+ALTER TABLE `User` MODIFY COLUMN `profileImage` TEXT;

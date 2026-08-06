@@ -16,7 +16,7 @@ model User {
   password     String
   name         String
   mobileNumber String?
-  profileImage String?
+  profileImage String? @db.Text
   isActive     Boolean @default(true)
 
   defaultCompanyId Int
