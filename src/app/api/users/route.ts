@@ -3,30 +3,27 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
 import { getCompanyContext } from "@/lib/company-context";
 
-// GET /api/users — list users across all companies the current user belongs to
+// GET /api/users — list users based on role visibility
+// - Owner (superadmin): sees ALL users across ALL companies
+// - Admin / other roles: sees only users in their own company (excluding superadmin/Owner)
 export async function GET(request: NextRequest) {
   try {
     const ctx = await getCompanyContext();
 
-    // Determine current user's role to decide visibility scope
     const myCompanyRole = await prisma.userCompany.findFirst({
       where: { userId: ctx.userId, companyId: ctx.companyId },
       include: { role: { select: { name: true } } },
     });
-    const isPrivileged = myCompanyRole?.role?.name === "Owner" || myCompanyRole?.role?.name === "Admin";
+    const isOwner = myCompanyRole?.role?.name === "Owner";
 
-    // Owner/Admin sees all companies; regular users see only their own
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let whereCondition: Record<string, any> = {};
-    if (!isPrivileged) {
-      const myCompanies = await prisma.userCompany.findMany({
-        where: { userId: ctx.userId },
-        select: { companyId: true },
-      });
-      const companyIds = myCompanies.map((c) => c.companyId);
-      whereCondition = companyIds.length > 0
-        ? { companyId: { in: companyIds } }
-        : { companyId: -1 };
+    let whereCondition: Record<string, any>;
+    if (isOwner) {
+      // Owner sees everything — no company filter
+      whereCondition = {};
+    } else {
+      // Non-owner: only their own company
+      whereCondition = { companyId: ctx.companyId };
     }
 
     const userCompanies = await prisma.userCompany.findMany({
@@ -40,6 +37,11 @@ export async function GET(request: NextRequest) {
     });
 
     const users = userCompanies
+      .filter((uc) => {
+        // Non-owner users cannot see Owner-role users (hides superadmin from company admins)
+        if (!isOwner && uc.role.name === "Owner") return false;
+        return true;
+      })
       .map((uc) => ({
         id: uc.user.id,
         username: uc.user.username,
