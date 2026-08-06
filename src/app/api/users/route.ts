@@ -8,19 +8,29 @@ export async function GET(request: NextRequest) {
   try {
     const ctx = await getCompanyContext();
 
-    // Companies the current user is a member of
-    const myCompanies = await prisma.userCompany.findMany({
-      where: { userId: ctx.userId },
-      select: { companyId: true },
+    // Determine current user's role to decide visibility scope
+    const myCompanyRole = await prisma.userCompany.findFirst({
+      where: { userId: ctx.userId, companyId: ctx.companyId },
+      include: { role: { select: { name: true } } },
     });
-    const companyIds = myCompanies.map((c) => c.companyId);
+    const isPrivileged = myCompanyRole?.role?.name === "Owner" || myCompanyRole?.role?.name === "Admin";
 
-    const where = companyIds.length > 0
-      ? { companyId: { in: companyIds } }
-      : { companyId: -1 };
+    // Owner/Admin sees all companies; regular users see only their own
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let whereCondition: Record<string, any> = {};
+    if (!isPrivileged) {
+      const myCompanies = await prisma.userCompany.findMany({
+        where: { userId: ctx.userId },
+        select: { companyId: true },
+      });
+      const companyIds = myCompanies.map((c) => c.companyId);
+      whereCondition = companyIds.length > 0
+        ? { companyId: { in: companyIds } }
+        : { companyId: -1 };
+    }
 
     const userCompanies = await prisma.userCompany.findMany({
-      where,
+      where: whereCondition,
       include: {
         user: { select: { id: true, username: true, name: true, email: true, mobileNumber: true, profileImage: true, isActive: true, createdAt: true } },
         role: { select: { id: true, name: true } },
@@ -30,10 +40,6 @@ export async function GET(request: NextRequest) {
     });
 
     const users = userCompanies
-      .filter((uc) => {
-        if (uc.role.name === "Owner" && ctx.userId !== 23) return false;
-        return true;
-      })
       .map((uc) => ({
         id: uc.user.id,
         username: uc.user.username,
