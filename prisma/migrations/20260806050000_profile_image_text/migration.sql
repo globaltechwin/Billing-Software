@@ -1,1 +1,1 @@
-ALTER TABLE `User` MODIFY COLUMN `profileImage` TEXT;
+ALTER TABLE `User` MODIFY COLUMN `profileImage` MEDIUMTEXT;

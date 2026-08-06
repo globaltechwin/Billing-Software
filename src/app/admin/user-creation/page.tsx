@@ -323,15 +323,27 @@ export default function UserCreationPage() {
     }
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.success) {
-        setProfileImageUrl(data.url);
-      } else {
-        alert(data.error || "Upload failed");
-      }
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const MAX = 300;
+          let w = img.width;
+          let h = img.height;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round((h / w) * MAX); w = MAX; }
+            else { w = Math.round((w / h) * MAX); h = MAX; }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", 0.7));
+        };
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = URL.createObjectURL(file);
+      });
+      setProfileImageUrl(dataUrl);
     } catch {
       alert("Upload failed");
     } finally {
