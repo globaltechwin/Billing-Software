@@ -125,7 +125,6 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
   const [error, setError] = useState<string | null>(null);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [upiQrDataUrl, setUpiQrDataUrl] = useState<string | null>(null);
-
   useEffect(() => {
     async function load() {
       try {
@@ -200,7 +199,7 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
     return (
       <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center">
         <div className="bg-white rounded-xl p-8 flex flex-col items-center gap-3">
-          <Loader2 size={24} className="animate-spin text-purple-600" />
+          <Loader2 size={24} className="animate-spin" style={{ color: "#000" }} />
           <p className="text-sm text-gray-600">Loading print preview...</p>
         </div>
       </div>
@@ -274,8 +273,8 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
         <div ref={previewRef} className="print-invoice-area">
           {/* Receipt Paper */}
           <div
-            className="bg-white shadow-2xl mx-auto border border-gray-300"
-            style={{ width: "440px", padding: "28px 32px", fontFamily: "'Courier New', Courier, monospace" }}
+            className="shadow-2xl mx-auto"
+            style={{ width: "340px", padding: "28px 32px", fontFamily: "'Courier New', Courier, monospace", color: "#111", fontWeight: "500", WebkitFontSmoothing: "antialiased", textRendering: "optimizeLegibility", backgroundColor: "#FAFAF8", border: "1px solid #d1d5db", overflow: "visible", boxSizing: "border-box" }}
           >
             {/* ═══════ LOGO ═══════ */}
             {(template.showLogo && template.logoUrl) || invoice.company.logo ? (
@@ -294,19 +293,19 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
 
             {/* ═══════ HEADER: All Centered ═══════ */}
             {isFieldVisible("branchName") && (
-              <div className="text-center" style={F(18)}>
-                <span className="font-bold">{invoice.company.companyName}</span>
+              <div className="text-center" style={{ ...F(18), fontWeight: "700" }}>
+                <span>{invoice.company.companyName}</span>
               </div>
             )}
 
             {isFieldVisible("address1") && invoice.company.address && (
-              <div className="text-center text-gray-600 mt-1 whitespace-pre-line" style={F(12)}>
+              <div className="text-center mt-1 whitespace-pre-line" style={{ ...F(12), color: "#111" }}>
                 {invoice.company.address}
               </div>
             )}
 
             {isFieldVisible("gstNumber") && invoice.company.gstNumber && (
-              <div className="text-center text-gray-700 mt-1" style={F(12)}>
+              <div className="text-center mt-1" style={{ ...F(12), color: "#111" }}>
                 {invoice.company.gstNumber}
               </div>
             )}
@@ -340,7 +339,7 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
             </div>
 
             {/* ═══════ DASHED DIVIDER ═══════ */}
-            <div className="border-t border-dashed border-gray-400 my-4" />
+            <div className="border-t border-dashed my-4" style={{ borderColor: "#666" }} />
 
             {/* ═══════ ITEMS TABLE ═══════ */}
             {isFieldVisible("itemName") && invoice.items.length > 0 && (
@@ -354,7 +353,7 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
 
                 {/* Items */}
                 {invoice.items.map((item, i) => (
-                  <div key={i} className="flex items-center py-1.5 border-b border-dotted border-gray-300">
+                  <div key={i} className="flex items-center py-1.5" style={{ borderBottom: "1px dotted #666" }}>
                     <span className="flex-1 truncate">{item.productName}</span>
                     <span className="w-14 text-center">{item.quantity}</span>
                     <span className="w-18 text-right">
@@ -366,7 +365,7 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
             )}
 
             {/* ═══════ DASHED DIVIDER ═══════ */}
-            <div className="border-t border-dashed border-gray-400 my-4" />
+            <div className="border-t border-dashed my-4" style={{ borderColor: "#666" }} />
 
             {/* ═══════ TOTALS ═══════ */}
             <div style={F(13)}>
@@ -390,7 +389,7 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
             </div>
 
             {/* ═══════ DASHED DIVIDER ═══════ */}
-            <div className="border-t border-dashed border-gray-400 my-4" />
+            <div className="border-t border-dashed my-4" style={{ borderColor: "#666" }} />
 
             {/* ═══════ TAX SUMMARY ═══════ */}
             {showGSTCols && taxAmount > 0 && (
@@ -470,11 +469,11 @@ export default function InvoicePrintPreview({ invoiceId, onClose, showQR = true,
             )}
 
             {/* ═══════ DASHED DIVIDER ═══════ */}
-            <div className="border-t border-dashed border-gray-400 my-4" />
+            <div className="border-t border-dashed my-4" style={{ borderColor: "#666" }} />
 
             {/* ═══════ FOOTER ═══════ */}
             {template.footerMessage && (
-              <div className="text-center text-gray-500" style={F(12)}>
+              <div className="text-center" style={{ ...F(12), color: "#111" }}>
                 {template.footerMessage}
               </div>
             )}

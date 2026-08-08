@@ -31,13 +31,15 @@ export default function LastBillPanel({
         </div>
       </div>
 
-      <button
-        onClick={onReprint}
-        className="w-full bg-gradient-to-r from-teal-500 to-teal-400 hover:from-teal-600 hover:to-teal-500 text-white text-sm font-semibold py-3 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
-      >
-        <Printer size={16} />
-        Reprint Last Bill
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={onReprint}
+          className="flex-1 bg-gradient-to-r from-teal-500 to-teal-400 hover:from-teal-600 hover:to-teal-500 text-white text-sm font-semibold py-3 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2"
+        >
+          <Printer size={16} />
+          Reprint
+        </button>
+      </div>
     </div>
   );
 }
