@@ -238,7 +238,7 @@ export default function BillingA4PrintPreview({
           </div>
         </div>
 
-        <div ref={printRef} className="p-6">
+        <div ref={printRef} className="p-6 print-invoice-area">
           <style>{`
             @media print {
               body * { visibility: hidden !important; }

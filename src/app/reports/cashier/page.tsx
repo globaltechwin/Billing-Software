@@ -74,6 +74,12 @@ export default function CashierReportPage() {
     if (orderType !== "All") {
       data = data.filter((r) => r.orderType === orderType);
     }
+    if (payment) {
+      data = data.filter((r) => (r.payModes || "").toLowerCase().includes(payment.toLowerCase()));
+    }
+    if (tax) {
+      data = data.filter((r) => tax === "GST" ? Number(r.grandTotal) > Number(r.subTotal) : Number(r.grandTotal) === Number(r.subTotal));
+    }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       data = data.filter(
@@ -85,7 +91,7 @@ export default function CashierReportPage() {
       );
     }
     return data;
-  }, [reportData, orderType, searchQuery]);
+  }, [reportData, orderType, payment, tax, searchQuery]);
 
   const totalPages = Math.ceil(filteredData.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;

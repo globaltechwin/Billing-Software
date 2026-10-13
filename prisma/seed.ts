@@ -215,30 +215,52 @@ async function main() {
       });
     }
 
-    // ── Super Admin User ──────────────────────────────────
-    console.log("Seeding superadmin...");
-    const hashedPw = await bcrypt.hash("admin123", 10);
-    let user = await prisma.user.findUnique({ where: { username: "superadmin" } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          username: "superadmin",
-          email: "admin@billora.com",
-          password: hashedPw,
-          name: "Super Admin",
-          mobileNumber: "9876543210",
-          defaultCompanyId: company.id,
-          roleId: roleRecords["Owner"].id,
-          isActive: true,
-        },
-      });
-    }
-    await prisma.userCompany.upsert({
-      where: { userId_companyId: { userId: user.id, companyId: company.id } },
-      update: {},
-      create: { userId: user.id, companyId: company.id, roleId: roleRecords["Owner"].id },
-    });
-    console.log(`  User: superadmin / admin123 (Owner)`);
+    // ── Super Admin User ─────────────────────────────────────
+console.log("Seeding superadmin...");
+
+const hashedPW = await bcrypt.hash("admin123", 10);
+
+const user = await prisma.user.upsert({
+  where: {
+    username: "superadmin",
+  },
+  update: {
+    email: "admin@billora.com",
+    password: hashedPW,
+    name: "Super Admin",
+    mobileNumber: "9876543210",
+    defaultCompanyId: company.id,
+    roleId: roleRecords["Owner"].id,
+    isActive: true,
+  },
+  create: {
+    username: "superadmin",
+    email: "admin@billora.com",
+    password: hashedPW,
+    name: "Super Admin",
+    mobileNumber: "9876543210",
+    defaultCompanyId: company.id,
+    roleId: roleRecords["Owner"].id,
+    isActive: true,
+  },
+});
+
+await prisma.userCompany.upsert({
+  where: {
+    userId_companyId: {
+      userId: user.id,
+      companyId: company.id,
+    },
+  },
+  update: {}, 
+  create: {
+    userId: user.id,
+    companyId: company.id,
+    roleId: roleRecords["Owner"].id,
+  },
+});
+
+console.log("✅ User: superadmin / admin123 (Owner)");
 
     // ── Vendors ────────────────────────────────────────────
     console.log("Seeding vendors...");

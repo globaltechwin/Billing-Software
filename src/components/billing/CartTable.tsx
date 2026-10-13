@@ -33,7 +33,7 @@ interface CartTableProps {
   perItemGst?: boolean;
   onUpdateGstRate?: (id: number, rate: number) => void;
   onItemRemarksChange?: (id: number, remarks: string) => void;
-  billType?: "INVOICE" | "QUOTATION" | "A4_BILL";
+  billType?: "INVOICE" | "QUOTATION" | "A4_BILL" | "A5_BILL";
   gstMode?: string;
   billGstRate?: number;
 }
@@ -50,6 +50,7 @@ export default function CartTable({
   billGstRate = 0,
 }: CartTableProps) {
   const isA4 = billType === "A4_BILL";
+  const isA5 = billType === "A5_BILL";
   const isIGST = perItemGst
     ? items.some((item) => { const g = (item as CartItemGST).gst; return g && g.igstPercentage > 0 && g.cgstPercentage === 0; })
     : gstMode === "WITH_IGST";

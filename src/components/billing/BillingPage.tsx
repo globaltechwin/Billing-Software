@@ -12,6 +12,7 @@ import BillSummary from "./BillSummary";
 import BillingActions from "./BillingActions";
 import InvoicePrintPreview from "./InvoicePrintPreview";
 import BillingA4PrintPreview from "./BillingA4PrintPreview";
+import BillingA5PrintPreview from "./BillingA5PrintPreview";
 
 export type BillingMode =
   | "WITH_GST"
@@ -63,11 +64,12 @@ export default function BillingPage() {
   const [defaultBillingMode, setDefaultBillingMode] =
     useState<BillingMode>("WITH_GST");
   const [billingMode, setBillingMode] = useState<BillingMode>("WITH_GST");
-  const [billType, setBillType] = useState<"INVOICE" | "QUOTATION" | "A4_BILL">(
-    "INVOICE",
-  );
+  const [billType, setBillType] = useState<
+  "INVOICE" | "QUOTATION" | "A4_BILL" | "A5_BILL"
+>("INVOICE");
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [showA4PrintPreview, setShowA4PrintPreview] = useState(false);
+  const [showA5PrintPreview, setShowA5PrintPreview] = useState(false);
   const [printInvoiceId, setPrintInvoiceId] = useState<number | null>(null);
   const [printDocType, setPrintDocType] = useState<"INVOICE" | "QUOTATION">(
     "INVOICE",
@@ -186,24 +188,41 @@ export default function BillingPage() {
           : "GST_VISIBLE";
 
   const subtotal = useMemo(
-    () => cart.reduce((s, i) => s + i.price * i.qty, 0),
-    [cart],
-  );
+  () =>
+    cart.reduce(
+      (sum, item) =>
+        sum + Number(item.price || 0) * Number(item.qty || 0),
+      0,
+    ),
+  [cart],
+);
 
-  const perItemTax = useMemo(() => {
-    if (!isItemWise) return 0;
-    return cart.reduce((sum, item) => {
-      const rate = item.gst.gstPercentage || 0;
-      return sum + Math.round(item.price * item.qty * (rate / 100) * 100) / 100;
-    }, 0);
-  }, [cart, isItemWise]);
+const perItemTax = useMemo(() => {
+  if (!isItemWise) return 0;
 
-  const effectiveTax = isNoGST
-    ? taxAmount
-    : isItemWise
-      ? perItemTax
-      : Math.round((subtotal - discAmount) * (gstRate / 100) * 100) / 100;
-  const total = subtotal - discAmount + effectiveTax;
+  return cart.reduce((sum, item) => {
+    const amount =
+      Number(item.price || 0) * Number(item.qty || 0);
+
+    const rate = Number(item.gst.gstPercentage || 0);
+
+    return sum + Math.round(amount * rate) / 100;
+  }, 0);
+}, [cart, isItemWise]);
+
+const effectiveTax = isNoGST
+  ? Number(taxAmount || 0)
+  : isItemWise
+    ? perItemTax
+    : Math.round(
+        (subtotal - Number(discAmount || 0)) *
+          Number(gstRate || 0),
+      ) / 100;
+
+const total = Math.max(
+  0,
+  subtotal - Number(discAmount || 0) + effectiveTax,
+);
 
   const handleAddProduct = useCallback(
     (product: {
@@ -480,7 +499,9 @@ export default function BillingPage() {
       if (data.success) {
         setPrintInvoiceId(data.invoice.id);
         setPrintDocType("INVOICE");
-        if (billType === "A4_BILL") {
+        if (billType === "A5_BILL") {
+          setShowA5PrintPreview(true);
+        } else if (billType === "A4_BILL") {
           setShowA4PrintPreview(true);
         } else {
           setShowPrintPreview(true);
@@ -643,7 +664,9 @@ export default function BillingPage() {
       if (data.success) {
         setPrintInvoiceId(data.estimate.id);
         setPrintDocType("QUOTATION");
-        if (billType === "A4_BILL") {
+        if (billType === "A5_BILL") {
+          setShowA5PrintPreview(true);
+        } else if (billType === "A4_BILL") {
           setShowA4PrintPreview(true);
         } else {
           setShowPrintPreview(true);
@@ -855,6 +878,16 @@ export default function BillingPage() {
                 >
                   A4 Bill
                 </button>
+                <button
+  onClick={() => setBillType("A5_BILL")}
+  className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+    billType === "A5_BILL"
+      ? "bg-blue-600 text-white"
+      : "bg-white text-gray-600 hover:bg-gray-50"
+  }`}
+>
+  A5 Bill
+</button>
               </div>
             </div>
           </div>
@@ -1112,6 +1145,19 @@ export default function BillingPage() {
           invoiceId={printInvoiceId}
           onClose={() => {
             setShowA4PrintPreview(false);
+            setPrintInvoiceId(null);
+          }}
+          showQR={showQR}
+          docType={printDocType}
+        />
+      )}
+
+      {/* A5 Full Tax Invoice Print Preview */}
+      {showA5PrintPreview && printInvoiceId && (
+        <BillingA5PrintPreview
+          invoiceId={printInvoiceId}
+          onClose={() => {
+            setShowA5PrintPreview(false);
             setPrintInvoiceId(null);
           }}
           showQR={showQR}

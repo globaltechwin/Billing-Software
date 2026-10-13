@@ -31,6 +31,8 @@ function buildInvoiceWhere(
     attender: string;
     customerType: string;
     orderType: string;
+    payment: string;
+    tax: string;
     branchId: number | null;
     search: string;
     includeDeleted?: boolean;
@@ -64,6 +66,15 @@ function buildInvoiceWhere(
 
   if (opts.orderType && opts.orderType !== "All") {
     where.kitchenOrders = { some: { orderType: opts.orderType.toUpperCase().replace(" ", "_") as never } };
+  }
+
+  if (opts.payment) {
+    where.paymentMode = { equals: opts.payment.toUpperCase() };
+  }
+  if (opts.tax === "GST") {
+    where.gstMode = { not: "NO_GST" };
+  } else if (opts.tax === "Non-GST") {
+    where.gstMode = "NO_GST";
   }
 
   if (opts.branchId) {
@@ -102,6 +113,8 @@ export async function GET(request: NextRequest) {
     const attender = searchParams.get("attender") || "";
     const customerType = searchParams.get("customerType") || "All";
     const orderType = searchParams.get("orderType") || "All";
+    const payment = searchParams.get("payment") || "";
+    const tax = searchParams.get("tax") || "";
     const branchId = searchParams.get("branchId") ? parseInt(searchParams.get("branchId")!, 10) : null;
     const search = searchParams.get("search") || "";
     const format = searchParams.get("format") || "";
@@ -122,6 +135,8 @@ export async function GET(request: NextRequest) {
       attender,
       customerType,
       orderType,
+      payment,
+      tax,
       branchId,
       search: "",
     });
@@ -135,6 +150,8 @@ export async function GET(request: NextRequest) {
       attender,
       customerType,
       orderType,
+      payment,
+      tax,
       branchId,
       search,
     });

@@ -9,7 +9,7 @@ interface BillingActionsProps {
   onSaveBill: () => void;
   onSaveQuotation?: () => void;
   onPrintQuotation?: () => void;
-  billType: "INVOICE" | "QUOTATION" | "A4_BILL";
+  billType: "INVOICE" | "QUOTATION" | "A4_BILL" | "A5_BILL";
   saving: boolean;
   canSave: boolean;
 }

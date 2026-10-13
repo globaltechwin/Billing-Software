@@ -70,6 +70,8 @@ export default function SalesReportPage() {
   const [selectAttender, setSelectAttender] = useState("");
   const [customerType, setCustomerType] = useState("All");
   const [orderType, setOrderType] = useState("All");
+  const [payment, setPayment] = useState("");
+  const [tax, setTax] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -112,6 +114,8 @@ export default function SalesReportPage() {
         attender: selectAttender,
         customerType,
         orderType,
+        payment,
+        tax,
         fetchAll: "true",
       });
       const res = await fetch(`/api/reports/sales?${params.toString()}`);
@@ -129,6 +133,22 @@ export default function SalesReportPage() {
     }
   };
 
+  const handleExportCsv = () => {
+    const headers = ["Bill ID", "Bill No", "Bill Date", "Order Type", "Subtotal", "Discount", "Grand Total", "Paid", "Due", "Payment", "Mobile", "Customer", "Created By"];
+    const quote = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const lines = [headers, ...filteredData.map((r) => [r.billId, r.billNo, r.billDate, r.orderType, r.subTotal, r.discount, r.grandTotal, r.paidAmount, r.amountDue, r.payModes, r.mobile, r.name, r.createdBy])].map((row) => row.map(quote).join(","));
+    const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.href = url; link.download = `billora-sales-${fromDate}-to-${toDate}.csv`; link.click(); URL.revokeObjectURL(url);
+  };
+
+  const handleHourly = () => {
+    const buckets = new Map<string, number>();
+    filteredData.forEach((row) => { const hour = String(row.printDate || row.billDate).match(/(?:T|\s)(\d{1,2}):/)?.[1] ?? "Unknown"; buckets.set(hour, (buckets.get(hour) || 0) + Number(row.grandTotal || 0)); });
+    const report = [...buckets.entries()].sort((a,b) => Number(a[0])-Number(b[0])).map(([hour, amount]) => `${hour}:00 — ${amount.toFixed(2)}`).join("\n");
+    window.alert(report || "No sales available for the selected filters.");
+  };
+
   const handleClear = () => {
     setFromDate(today);
     setFromTime("00:00");
@@ -138,6 +158,8 @@ export default function SalesReportPage() {
     setSelectAttender("");
     setCustomerType("All");
     setOrderType("All");
+    setPayment("");
+    setTax("");
     setSearchQuery("");
     setReportData([]);
     setSummaryTotals(DEFAULT_TOTALS);
@@ -225,15 +247,15 @@ export default function SalesReportPage() {
         <div className="px-6 py-2 flex flex-wrap items-center gap-2 border-t border-gray-200">
           <button onClick={handleView} className="px-5 py-1.5 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors">View</button>
           <button onClick={handleClear} className="px-5 py-1.5 bg-purple-500 text-white rounded-md text-sm font-medium hover:bg-purple-600 transition-colors">Clear</button>
-          <button className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Hourly</button>
-          <button className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Print</button>
-          <button className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Waiter</button>
-          <button className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Bills</button>
-          <button className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Excel</button>
-          <button className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Bill XLS</button>
-          <button className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Day PDF</button>
-          <button className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Sales PDF</button>
-          <button className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Denomination</button>
+          <button onClick={handleHourly} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Hourly</button>
+          <button onClick={() => window.print()} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Print</button>
+          <button onClick={() => { setSelectAttender(""); window.alert("Choose an attender from the Select Attender filter, then click View."); }} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Waiter</button>
+          <button onClick={() => document.getElementById("sales-bill-list")?.scrollIntoView({ behavior: "smooth" })} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Bills</button>
+          <button onClick={handleExportCsv} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Excel</button>
+          <button onClick={handleExportCsv} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Bill XLS</button>
+          <button onClick={() => window.print()} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Day PDF</button>
+          <button onClick={() => window.print()} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Sales PDF</button>
+          <button onClick={() => window.alert(`Cash denomination summary\nBills: ${totals.bills}\nTotal sales: ${totals.grandTotal.toFixed(2)}\nPaid: ${totals.paidAmount.toFixed(2)}\nDue: ${totals.amountDue.toFixed(2)}`)} className="px-4 py-1.5 bg-white border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50 transition-colors">Denomination</button>
         </div>
       </div>
 
@@ -278,17 +300,23 @@ export default function SalesReportPage() {
               <option value="Delivery">Delivery</option>
             </select>
           </div>
-          <div className="flex-1">
+          <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">PAYMENT</span>
+            <select value={payment} onChange={(e) => setPayment(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm">
+              <option value="">--All--</option><option value="Cash">Cash</option><option value="Card">Card</option><option value="UPI">UPI</option><option value="Credit">Credit</option>
+            </select>
           </div>
-          <div className="flex-1">
+          <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-gray-700">TAX</span>
+            <select value={tax} onChange={(e) => setTax(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm">
+              <option value="">--All--</option><option value="GST">GST</option><option value="Non-GST">Non-GST</option>
+            </select>
           </div>
         </div>
       </div>
 
       {/* Bill List */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div id="sales-bill-list" className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-3 border-b border-gray-200">
           <h3 className="text-sm font-semibold text-gray-800">Bill List</h3>
         </div>
