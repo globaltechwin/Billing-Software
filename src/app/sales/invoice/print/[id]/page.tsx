@@ -15,6 +15,7 @@ export default function InvoicePrintPage() {
       router.replace("/sales/invoice");
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValid(true);
   }, [invoiceId, router]);
 

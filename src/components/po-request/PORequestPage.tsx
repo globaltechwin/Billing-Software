@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Search, X } from "lucide-react";
-import { categories, POProduct, POItem } from "./data";
+import { type POProduct, type POItem } from "./data";
 
 interface ApiVendor {
   id: number;
@@ -16,6 +16,7 @@ interface ApiVendor {
 
 export default function PORequestPage() {
   const [category, setCategory] = useState("All Categories");
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
   const [indentNo, setIndentNo] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -63,6 +64,23 @@ export default function PORequestPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // Fetch company-specific active categories from the database API.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/product-categories", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Could not load product categories");
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled && data.success && Array.isArray(data.categories)) {
+          setCategoryOptions(data.categories.filter((c: { isActive?: boolean; name?: string }) => c.isActive !== false && typeof c.name === "string").map((c: { name: string }) => c.name));
+        }
+      })
+      .catch((error) => { if (!cancelled) console.error("Purchase request categories failed to load:", error); });
+    return () => { cancelled = true; };
+  }, []);
+
   // Fetch vendors from API
   useEffect(() => {
     fetch("/api/vendors")
@@ -84,6 +102,9 @@ export default function PORequestPage() {
             data.products.map((p: Record<string, unknown>) => ({
               id: String(p.id),
               name: p.productName as string,
+              productCode: typeof p.productCode === "string" ? p.productCode : null,
+              barcode: typeof p.barcode === "string" ? p.barcode : null,
+              category: (p.category as string) || "Uncategorized",
               uom: p.unit as string,
               vendor: "",
               currentStock: Number(p.currentStock) || 0,
@@ -100,7 +121,8 @@ export default function PORequestPage() {
   // Filter products
   const filteredProducts = productsList.filter(
     (p) =>
-      p.name.toLowerCase().includes(productSearch.toLowerCase()) &&
+      (category === "All Categories" || (p.category || "Uncategorized") === category) &&
+      (p.name.toLowerCase().includes(productSearch.trim().toLowerCase()) || (p.productCode ?? "").toLowerCase().includes(productSearch.trim().toLowerCase()) || (p.barcode ?? "").toLowerCase().includes(productSearch.trim().toLowerCase())) &&
       !items.some((i) => i.product.id === p.id)
   );
 
@@ -278,7 +300,8 @@ export default function PORequestPage() {
               onChange={(e) => setCategory(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              {categories.map((cat) => (
+              <option value="All Categories">All Categories</option>
+              {categoryOptions.map((cat) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
@@ -314,7 +337,7 @@ export default function PORequestPage() {
                   setSelectedProduct(null);
                 }}
                 onFocus={() => setShowProductDropdown(true)}
-                placeholder="Enter Product"
+                placeholder="Search product name, code, or barcode"
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               {showProductDropdown && (
@@ -330,7 +353,7 @@ export default function PORequestPage() {
                         onClick={() => handleProductSelect(product)}
                         className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b border-gray-50 last:border-0"
                       >
-                        <span className="text-gray-700">{product.name}</span>
+                        <span className="text-gray-700">{product.name}<span className="ml-2 text-xs text-gray-400">{product.productCode || product.barcode || ""}</span></span>
                         <span className="text-xs text-gray-400">
                           {product.uom} | Stock: {product.currentStock} | ₹{product.price}
                         </span>

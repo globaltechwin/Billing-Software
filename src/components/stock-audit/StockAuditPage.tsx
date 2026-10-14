@@ -7,7 +7,8 @@ import { AuditItem } from "./data";
 interface ApiProduct {
   id: number;
   productName: string;
-  productCode: string;
+  productCode: string | null;
+  barcode?: string | null;
   unit: string;
   currentStock: number;
   purchasePrice: number;
@@ -97,7 +98,7 @@ export default function StockAuditPage() {
   // Filter products (exclude already added)
   const filteredProducts = productsList.filter(
     (p) =>
-      p.productName.toLowerCase().includes(productSearch.toLowerCase()) &&
+      (p.productName.toLowerCase().includes(productSearch.trim().toLowerCase()) || (p.productCode ?? "").toLowerCase().includes(productSearch.trim().toLowerCase()) || (p.barcode ?? "").toLowerCase().includes(productSearch.trim().toLowerCase())) &&
       !auditItems.some((i) => i.productId === p.id)
   );
 
@@ -366,7 +367,7 @@ export default function StockAuditPage() {
                 setShowProductDropdown(true);
               }}
               onFocus={() => setShowProductDropdown(true)}
-              placeholder="Search Product to add"
+              placeholder="Search product name, code, or barcode"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {showProductDropdown && (
@@ -382,7 +383,7 @@ export default function StockAuditPage() {
                       onClick={() => handleProductSelect(product)}
                       className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b border-gray-50 last:border-0"
                     >
-                      <span className="text-gray-700">{product.productName}</span>
+                      <span className="text-gray-700">{product.productName}<span className="ml-2 text-xs text-gray-400">{product.productCode || product.barcode || ""}</span></span>
                       <span className="text-xs text-gray-400">
                         {product.unit} | Stock: {Number(product.currentStock).toFixed(2)}
                       </span>

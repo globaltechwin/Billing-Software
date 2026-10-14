@@ -6,6 +6,7 @@ import { ChevronDown, Search } from "lucide-react";
 interface ProductSearchProduct {
   id: number;
   productName: string;
+  productCode: string | null;
   category: string | null;
   sellingPrice: number;
   currentStock: number;
@@ -35,6 +36,7 @@ export default function ProductSearch({ onAddProduct }: ProductSearchProps) {
             data.products.map((p: ProductSearchProduct) => ({
               id: p.id,
               productName: p.productName,
+              productCode: p.productCode ?? null,
               category: p.category,
               sellingPrice: Number(p.sellingPrice),
               currentStock: Number(p.currentStock),
@@ -64,8 +66,9 @@ export default function ProductSearch({ onAddProduct }: ProductSearchProps) {
   const filtered = products.filter(
     (p) =>
       (category === "All" || p.category === category) &&
-      (p.productName.toLowerCase().includes(query.toLowerCase()) ||
-        (p.barcode && p.barcode.toLowerCase().includes(query.toLowerCase())))
+      (p.productName.toLowerCase().includes(query.trim().toLowerCase()) ||
+        (p.productCode && p.productCode.toLowerCase().includes(query.trim().toLowerCase())) ||
+        (p.barcode && p.barcode.toLowerCase().includes(query.trim().toLowerCase())))
   );
 
   function handleSelect(product: ProductSearchProduct) {
@@ -83,7 +86,7 @@ export default function ProductSearch({ onAddProduct }: ProductSearchProps) {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name or barcode..."
+            placeholder="Search by product name, code, or barcode..."
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -102,7 +105,7 @@ export default function ProductSearch({ onAddProduct }: ProductSearchProps) {
                 disabled={product.currentStock <= 0}
                 className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-purple-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-between"
               >
-                <span>{product.productName}</span>
+                <span>{product.productName}<span className="ml-2 text-xs text-gray-400">{product.productCode || product.barcode || ""}</span></span>
                 <span className="text-xs text-gray-400">
                   Stock: {product.currentStock}
                 </span>

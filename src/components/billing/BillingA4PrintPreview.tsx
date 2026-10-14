@@ -189,10 +189,10 @@ export default function BillingA4PrintPreview({
   }
 
   const itemsWithTax = invoice.items.map((item, idx) => {
-    const taxableValue = item.subtotal;
-    const cgstAmt = showCgstSgst ? item.cgstAmount : 0;
-    const sgstAmt = showCgstSgst ? item.sgstAmount : 0;
-    const igstAmt = showIgst ? item.igstAmount : 0;
+    const taxableValue = Number(item.unitPrice || 0) * Number(item.quantity || 0);
+    const cgstAmt = showCgstSgst ? Number(item.cgstAmount || 0) : 0;
+    const sgstAmt = showCgstSgst ? Number(item.sgstAmount || 0) : 0;
+    const igstAmt = showIgst ? Number(item.igstAmount || 0) : 0;
     const totalAmount = taxableValue + cgstAmt + sgstAmt + igstAmt;
     return { ...item, srNo: idx + 1, taxableValue, cgstAmt, sgstAmt, igstAmt, totalAmount };
   });
@@ -202,7 +202,7 @@ export default function BillingA4PrintPreview({
   const totalSgst = itemsWithTax.reduce((s, i) => s + i.sgstAmt, 0);
   const totalIgst = itemsWithTax.reduce((s, i) => s + i.igstAmt, 0);
   const totalQty = itemsWithTax.reduce((s, i) => s + i.quantity, 0);
-  const grandTotal = invoice.grandTotal;
+  const grandTotal = Number(invoice.grandTotal || 0);
   const amountInWords = numberToWords(Math.round(grandTotal));
 
   const fullAddress = [company.address, company.city, company.stateName, company.pincode].filter(Boolean).join(", ");
@@ -402,15 +402,15 @@ export default function BillingA4PrintPreview({
                     <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "right" }}>{fmt(item.taxableValue)}</td>
                     {showCgstSgst && (
                       <>
-                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{(item.cgstPercentage || cgstRate).toFixed(2)}%</td>
+                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{Number(item.cgstPercentage ?? cgstRate ?? 0).toFixed(2)}%</td>
                         <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "right" }}>{fmt(item.cgstAmt)}</td>
-                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{(item.sgstPercentage || sgstRate).toFixed(2)}%</td>
+                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{Number(item.sgstPercentage ?? sgstRate ?? 0).toFixed(2)}%</td>
                         <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "right" }}>{fmt(item.sgstAmt)}</td>
                       </>
                     )}
                     {showIgst && (
                       <>
-                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{(item.igstPercentage || igstRate).toFixed(2)}%</td>
+                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{Number(item.igstPercentage ?? igstRate ?? 0).toFixed(2)}%</td>
                         <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "right" }}>{fmt(item.igstAmt)}</td>
                       </>
                     )}

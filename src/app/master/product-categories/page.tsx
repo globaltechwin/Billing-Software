@@ -25,6 +25,7 @@ export default function ProductCategoriesPage() {
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load categories."); }
     finally { setLoading(false); }
   }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   async function submit(e: FormEvent) {

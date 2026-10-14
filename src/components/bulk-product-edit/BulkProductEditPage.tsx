@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Edit3, DollarSign, RefreshCw, Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { ProductRecord, GSTRate, BulkUpdateFields } from "./data";
-import { productCategories } from "@/components/product/data";
 
 interface UnitApi {
   id: number;
@@ -18,6 +17,7 @@ export default function BulkProductEditPage() {
 
   // Data
   const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [productCategories, setProductCategories] = useState<string[]>([]);
   const [gstRates, setGstRates] = useState<GSTRate[]>([]);
   const [unitsList, setUnitsList] = useState<UnitApi[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,10 +101,23 @@ export default function BulkProductEditPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch("/api/product-categories", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Failed to load product categories");
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled && data.success && Array.isArray(data.categories)) {
+          setProductCategories(data.categories.filter((c: { isActive?: boolean; name?: string }) => c.isActive !== false && typeof c.name === "string").map((c: { name: string }) => c.name));
+        }
+      })
+      .catch((error) => console.error("Bulk edit categories failed to load:", error));
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchProducts();
     fetchGstRates();
     fetchUnits();
+    return () => { cancelled = true; };
   }, [fetchProducts, fetchGstRates, fetchUnits]);
 
   // Filter products

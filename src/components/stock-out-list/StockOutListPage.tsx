@@ -4,6 +4,15 @@ import { useState, useEffect } from "react";
 import { Maximize2, Settings, X, Loader2 } from "lucide-react";
 import { StockOutRecord } from "./data";
 
+function mapStockOutStatus(status: string): StockOutRecord["status"] {
+  switch (status) {
+    case "COMPLETED": return "Completed";
+    case "CANCELLED": return "Cancelled";
+    case "PENDING":
+    default: return "Pending";
+  }
+}
+
 const stockOutTypes = [
   "PRODUCTION",
   "DAMAGE",
@@ -15,8 +24,8 @@ const stockOutTypes = [
 const statusList = ["Pending", "Completed", "Cancelled"];
 
 export default function StockOutListPage() {
-  const [startDate, setStartDate] = useState("30/07/2026");
-  const [endDate, setEndDate] = useState("30/07/2026");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [stockOutTypeFilter, setStockOutTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,7 +71,7 @@ export default function StockOutListPage() {
               totalQuantity: totalQty,
               totalAmount: totalAmt,
               remarks: (r.notes as string) || "-",
-              status: mapStatus(r.status as string),
+              status: mapStockOutStatus(r.status as string),
               createdBy,
               createdDate: new Date(r.createdAt as string).toLocaleDateString("en-IN", {
                 day: "2-digit",
@@ -91,19 +100,6 @@ export default function StockOutListPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchStockOuts();
   }, []);
-
-  // Map status to display status
-  const mapStatus = (status: string): StockOutRecord["status"] => {
-    switch (status) {
-      case "COMPLETED":
-        return "Completed";
-      case "CANCELLED":
-        return "Cancelled";
-      case "PENDING":
-      default:
-        return "Pending";
-    }
-  };
 
   // Map stock out type to display label
   const mapStockOutType = (type: string) => {

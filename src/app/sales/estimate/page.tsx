@@ -304,7 +304,7 @@ export default function EstimatePage() {
                   {paginatedData.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
-                        No estimates found. Click "New F3" to create one.
+                        No estimates found. Click &quot;New F3&quot; to create one.
                       </td>
                     </tr>
                   ) : (

@@ -4,6 +4,15 @@ import { useState, useEffect } from "react";
 import { Maximize2, Settings, X, Loader2 } from "lucide-react";
 import { StockAuditRecord } from "./data";
 
+function mapStockAuditStatus(status: string): StockAuditRecord["status"] {
+  switch (status) {
+    case "COMPLETED": return "Completed";
+    case "CANCELLED": return "Cancelled";
+    case "DRAFT":
+    default: return "Draft";
+  }
+}
+
 const auditTypes = ["FULL", "PARTIAL"];
 const statusList = ["Draft", "Completed", "Cancelled"];
 
@@ -47,7 +56,7 @@ export default function StockAuditListPage() {
               auditor: r.auditor as string,
               totalProducts: items.length,
               totalAdjustments: totalAdj,
-              status: mapStatus(r.status as string),
+              status: mapStockAuditStatus(r.status as string),
               createdBy,
               createdDate: new Date(r.createdAt as string).toLocaleDateString("en-IN", {
                 day: "2-digit",
@@ -73,20 +82,9 @@ export default function StockAuditListPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAudits();
   }, []);
-
-  const mapStatus = (status: string): StockAuditRecord["status"] => {
-    switch (status) {
-      case "COMPLETED":
-        return "Completed";
-      case "CANCELLED":
-        return "Cancelled";
-      case "DRAFT":
-      default:
-        return "Draft";
-    }
-  };
 
   // Parse DD/MM/YYYY to Date
   const parseDate = (dateStr: string): Date => {

@@ -23,6 +23,8 @@ const departments = [
 interface ApiProduct {
   id: number;
   productName: string;
+  productCode?: string | null;
+  barcode?: string | null;
   unit: string;
   currentStock: number;
   purchasePrice: number;
@@ -72,6 +74,8 @@ export default function StockOutPage() {
             .map((p: ApiProduct) => ({
               id: String(p.id),
               name: p.productName,
+              productCode: p.productCode ?? null,
+              barcode: p.barcode ?? null,
               uom: p.unit,
               currentStock: Number(p.currentStock),
               price: Number(p.purchasePrice),
@@ -97,7 +101,7 @@ export default function StockOutPage() {
   // Filter products
   const filteredProducts = productsList.filter(
     (p) =>
-      p.name.toLowerCase().includes(productSearch.toLowerCase()) &&
+      (p.name.toLowerCase().includes(productSearch.trim().toLowerCase()) || (p.productCode ?? "").toLowerCase().includes(productSearch.trim().toLowerCase()) || (p.barcode ?? "").toLowerCase().includes(productSearch.trim().toLowerCase())) &&
       !items.some((i) => i.product.id === p.id)
   );
 
@@ -370,7 +374,7 @@ export default function StockOutPage() {
                 setShowProductDropdown(true);
               }}
               onFocus={() => setShowProductDropdown(true)}
-              placeholder="Enter Product"
+              placeholder="Search product name, code, or barcode"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {showProductDropdown && (
@@ -386,7 +390,7 @@ export default function StockOutPage() {
                       onClick={() => handleProductSelect(product)}
                       className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b border-gray-50 last:border-0"
                     >
-                      <span className="text-gray-700">{product.name}</span>
+                      <span className="text-gray-700">{product.name}<span className="ml-2 text-xs text-gray-400">{product.productCode || product.barcode || ""}</span></span>
                       <span className="text-xs text-gray-400">
                         {product.uom} | Stock: {product.currentStock}
                       </span>

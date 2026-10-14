@@ -400,65 +400,66 @@ model Company {
   createdByUser User? @relation("CreatedCompanies", fields: [createdByUserId], references: [id])
   updatedByUser User? @relation("UpdatedCompanies", fields: [updatedByUserId], references: [id])
 
-  branches              Branch[]
-  users                 User[]                 @relation("DefaultCompany")
-  userCompanies         UserCompany[]
-  customers             Customer[]
-  products              Product[]
-  invoices              Invoice[]
-  vendors               Vendor[]
-  purchaseOrders        PurchaseOrder[]
-  goodsReceipts         GoodsReceipt[]
-  stockOuts             StockOut[]
-  stockAudits           StockAudit[]
-  indents               Indent[]
-  inventoryLedger       InventoryLedger[]
-  purchaseInvoices      PurchaseInvoice[]
-  vendorPayments        VendorPayment[]
-  invoicePayments       InvoicePayment[]
-  kitchenOrders         KitchenOrder[]
-  printTemplates        PrintTemplate[]
-  estimates             Estimate[]
-  vendorBranchMappings  VendorBranchMapping[]
-  expenseCategories     ExpenseCategory[]
-  expenses              Expense[]
-  dayClosings           DayClosing[]
-  advanceOrders         AdvanceOrder[]
-  advanceOrderItems     AdvanceOrderItem[]
-  paymentSettings       PaymentSettings[]
-  students              Student[]
-  units                 Unit[]
-  productionMappings    ProductionMapping[]
-  productionConversions ProductionConversion[]
-  productionPlans       ProductionPlan[]
-  productionPlanItems   ProductionPlanItem[]
-  productionIns         ProductionIn[]
-  productionInItems     ProductionInItem[]
-  productionOuts        ProductionOut[]
-  productionOutItems    ProductionOutItem[]
-  wastage               Wastage[]
-  wastageItems          WastageItem[]
-  walletTransactions    WalletTransaction[]
-  waBalance             WABalance?
-  waMessages            WAMessage[]
-  waBalanceTransactions WABalanceTransaction[]
-  waTemplates           WATemplate[]
-  waCampaigns           WACampaign[]
-  cashCategories        CashCategory[]
-  cashAccounts          CashAccount[]
-  cashTransactions      CashTransaction[]
-  quotes                Quote[]
-  accountingInvoices    AccountingInvoice[]
-  events                Event[]
-  backupSetting         BackupSetting?
-  backupHistory         BackupHistory[]
-  restoreHistory        RestoreHistory[]
-  backupLogs            BackupLog[]
-  backupJobs            BackupJob[]
-  cloudBackups          CloudBackup[]
-  menuAccesses          UserMenuAccess[]
-  notifications         Notification[]
-  heldBills             HeldBill[]
+  branches               Branch[]
+  users                  User[]                 @relation("DefaultCompany")
+  userCompanies          UserCompany[]
+  customers              Customer[]
+  products               Product[]
+  invoices               Invoice[]
+  vendors                Vendor[]
+  purchaseOrders         PurchaseOrder[]
+  goodsReceipts          GoodsReceipt[]
+  stockOuts              StockOut[]
+  stockAudits            StockAudit[]
+  indents                Indent[]
+  inventoryLedger        InventoryLedger[]
+  purchaseInvoices       PurchaseInvoice[]
+  vendorPayments         VendorPayment[]
+  invoicePayments        InvoicePayment[]
+  kitchenOrders          KitchenOrder[]
+  printTemplates         PrintTemplate[]
+  estimates              Estimate[]
+  vendorBranchMappings   VendorBranchMapping[]
+  expenseCategories      ExpenseCategory[]
+  expenses               Expense[]
+  dayClosings            DayClosing[]
+  advanceOrders          AdvanceOrder[]
+  advanceOrderItems      AdvanceOrderItem[]
+  paymentSettings        PaymentSettings[]
+  students               Student[]
+  units                  Unit[]
+  productionMappings     ProductionMapping[]
+  productionConversions  ProductionConversion[]
+  productionPlans        ProductionPlan[]
+  productionPlanItems    ProductionPlanItem[]
+  productionIns          ProductionIn[]
+  productionInItems      ProductionInItem[]
+  productionOuts         ProductionOut[]
+  productionOutItems     ProductionOutItem[]
+  wastage                Wastage[]
+  wastageItems           WastageItem[]
+  walletTransactions     WalletTransaction[]
+  waBalance              WABalance?
+  waMessages             WAMessage[]
+  waBalanceTransactions  WABalanceTransaction[]
+  waTemplates            WATemplate[]
+  waCampaigns            WACampaign[]
+  cashCategories         CashCategory[]
+  cashAccounts           CashAccount[]
+  cashTransactions       CashTransaction[]
+  quotes                 Quote[]
+  accountingInvoices     AccountingInvoice[]
+  events                 Event[]
+  backupSetting          BackupSetting?
+  backupHistory          BackupHistory[]
+  restoreHistory         RestoreHistory[]
+  backupLogs             BackupLog[]
+  backupJobs             BackupJob[]
+  cloudBackups           CloudBackup[]
+  menuAccesses           UserMenuAccess[]
+  notifications          Notification[]
+  heldBills              HeldBill[]
+  productCategoryRecords ProductCategory[]
 
   @@map("company")
 }
@@ -2349,4 +2350,18 @@ model Notification {
   @@index([companyId, isRead])
   @@index([companyId, createdAt])
   @@map("notification")
+}
+
+model ProductCategory {
+  id        Int      @id @default(autoincrement())
+  companyId Int
+  name      String   @db.VarChar(100)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.DateTime(3)
+  updatedAt DateTime @updatedAt @db.DateTime(3)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
 }

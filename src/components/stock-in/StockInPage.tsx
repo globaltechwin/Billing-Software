@@ -37,6 +37,8 @@ interface ApiPO {
 interface ApiProduct {
   id: number;
   productName: string;
+  productCode?: string | null;
+  barcode?: string | null;
   unit: string | null;
   currentStock: number;
   purchasePrice: number;
@@ -243,6 +245,7 @@ export default function StockInPage() {
   // Fetch products for direct mode
   useEffect(() => {
     if (mode !== "direct") return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProductLoading(true);
     fetch("/api/products")
       .then((res) => res.json())
@@ -270,13 +273,16 @@ export default function StockInPage() {
   // Filter products for direct mode
   const filteredProducts = productList.filter(
     (p) =>
-      p.productName.toLowerCase().includes(productSearch.toLowerCase())
+      p.productName.toLowerCase().includes(productSearch.trim().toLowerCase()) ||
+      (p.productCode || "").toLowerCase().includes(productSearch.trim().toLowerCase()) ||
+      (p.barcode || "").toLowerCase().includes(productSearch.trim().toLowerCase())
   );
 
   // Add product to items in direct mode
   const handleProductSelect = (product: ApiProduct) => {
     const gstPct = Number(product.gstMaster?.totalPercentage || 0);
     const newItem: StockInItem = {
+      // eslint-disable-next-line react-hooks/purity
       id: `direct-${Date.now()}-${product.id}`,
       product: {
         id: String(product.id),
@@ -656,7 +662,7 @@ export default function StockInPage() {
                     setShowProductDropdown(true);
                   }}
                   onFocus={() => setShowProductDropdown(true)}
-                  placeholder="Search product to add..."
+                  placeholder="Search product name, code, or barcode..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 {showProductDropdown && (
@@ -672,7 +678,7 @@ export default function StockInPage() {
                           onClick={() => handleProductSelect(p)}
                           className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 border-b border-gray-50 last:border-0"
                         >
-                          <span className="text-gray-700 font-medium">{p.productName}</span>
+                          <span className="text-gray-700 font-medium">{p.productName}</span><span className="text-xs text-gray-400 ml-2">{p.productCode || p.barcode || ""}</span>
                           <span className="text-xs text-gray-400 ml-2">Stock: {p.currentStock}</span>
                         </button>
                       ))

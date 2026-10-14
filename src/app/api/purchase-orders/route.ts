@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
     const companyId = await getCurrentCompanyId();
     const userId = await getCurrentUserId();
     const body = await request.json();
-    const { vendorId, branchId, expectedDelivery, items, notes } = body;
+    const { vendorId, branchId, expectedDelivery, items, notes } = body as {
+      vendorId: number; branchId?: number | null; expectedDelivery?: string | null; notes?: string | null;
+      items: Array<{ productId: number; quantity: number; purchasePrice: number; discount?: number; gstPercentage: number; unit?: string }>;
+    };
 
     if (!vendorId || !items || items.length === 0) {
       return NextResponse.json({ error: "vendorId and items are required" }, { status: 400 });
@@ -45,7 +48,7 @@ export async function POST(request: NextRequest) {
       purchasePrice: number; discount: number; gstPercentage: number;
       cgstAmount: number; sgstAmount: number; igstAmount: number;
       taxAmount: number; lineTotal: number;
-    }> = items.map((item: any) => {
+    }> = items.map((item) => {
       const itemSubtotal = item.quantity * item.purchasePrice;
       const discount = item.discount || 0;
       const afterDiscount = itemSubtotal - discount;

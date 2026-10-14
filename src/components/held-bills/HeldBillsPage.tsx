@@ -73,6 +73,7 @@ export default function HeldBillsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchHeldBills();
   }, [fetchHeldBills]);
 

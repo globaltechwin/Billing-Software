@@ -5,6 +5,17 @@ import { useRouter } from "next/navigation";
 import { Maximize2, Settings, X, Loader2 } from "lucide-react";
 import { IndentRecord } from "./data";
 
+function mapIndentStatus(status: string): IndentRecord["status"] {
+  switch (status) {
+    case "APPROVED": return "Approved";
+    case "REJECTED": return "Rejected";
+    case "COMPLETED": return "Completed";
+    case "CANCELLED": return "Cancelled";
+    case "PENDING":
+    default: return "Pending";
+  }
+}
+
 const priorities = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 const statusList = ["Pending", "Approved", "Rejected", "Completed", "Cancelled"];
 
@@ -61,7 +72,7 @@ export default function IndentListPage() {
               totalProducts: items.length,
               totalQty,
               remarks: (r.remarks as string) || "-",
-              status: mapStatus(r.status as string),
+              status: mapIndentStatus(r.status as string),
               createdBy,
               createdDate: new Date(r.createdAt as string).toLocaleDateString("en-IN", {
                 day: "2-digit",
@@ -87,19 +98,9 @@ export default function IndentListPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchIndents();
   }, [fetchIndents]);
-
-  const mapStatus = (status: string): IndentRecord["status"] => {
-    switch (status) {
-      case "APPROVED": return "Approved";
-      case "REJECTED": return "Rejected";
-      case "COMPLETED": return "Completed";
-      case "CANCELLED": return "Cancelled";
-      case "PENDING":
-      default: return "Pending";
-    }
-  };
 
   const parseDate = (dateStr: string): Date => {
     const [d, m, y] = dateStr.split("/").map(Number);

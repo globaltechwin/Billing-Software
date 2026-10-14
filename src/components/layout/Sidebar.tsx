@@ -88,6 +88,7 @@ const NAV_ITEMS: NavItemWithSubmenu[] = [
     submenu: [
       { label: "Master Configuration", href: "/master/master-configuration" },
       { label: "Product", href: "/master/product" },
+      { label: "Product Categories", href: "/master/product-categories" },
       { label: "Barcode Generation", href: "/master/barcode-generation" },
       { label: "Vendor Branch Mapping", href: "/master/vendor-branch-mapping" },
       { label: "Vendor Branch List", href: "/master/vendor-branch-list" },

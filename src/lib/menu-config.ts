@@ -49,6 +49,7 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
     children: [
       { label: "Master Configuration", path: "/master/master-configuration" },
       { label: "Product", path: "/master/product" },
+      { label: "Product Categories", path: "/master/product-categories" },
       { label: "Barcode Generation", path: "/master/barcode-generation" },
       { label: "Vendor Branch Mapping", path: "/master/vendor-branch-mapping" },
       { label: "Vendor Branch List", path: "/master/vendor-branch-list" },

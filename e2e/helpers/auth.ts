@@ -53,6 +53,8 @@ export const test = base.extend<{ authenticatedContext: BrowserContext }>({
       storageState: statePath,
     });
 
+    // Playwright fixture callback; this is not a React Hook.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(context);
     await context.close();
   },

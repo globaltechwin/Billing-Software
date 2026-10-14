@@ -106,11 +106,11 @@ export default function ProductionMappingPage() {
   }, []);
 
   const filteredItems = itemNameSearch
-    ? products.filter((p) => p.productName.toLowerCase().includes(itemNameSearch.toLowerCase()))
+    ? products.filter((p) => p.productName.toLowerCase().includes(itemNameSearch.trim().toLowerCase()) || (p.productCode ?? "").toLowerCase().includes(itemNameSearch.trim().toLowerCase()))
     : products;
 
   const filteredProductionItems = productionNameSearch
-    ? products.filter((p) => p.productName.toLowerCase().includes(productionNameSearch.toLowerCase()))
+    ? products.filter((p) => p.productName.toLowerCase().includes(productionNameSearch.trim().toLowerCase()) || (p.productCode ?? "").toLowerCase().includes(productionNameSearch.trim().toLowerCase()))
     : products;
 
   const handleClear = () => {
@@ -246,7 +246,7 @@ export default function ProductionMappingPage() {
                       value={itemNameSearch}
                       onChange={(e) => { setItemNameSearch(e.target.value); setShowItemDropdown(true); setItemId(null); }}
                       onFocus={() => setShowItemDropdown(true)}
-                      placeholder="Enter Product"
+                      placeholder="Search product name or code"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     <button
@@ -290,7 +290,7 @@ export default function ProductionMappingPage() {
                         value={productionNameSearch}
                         onChange={(e) => { setProductionNameSearch(e.target.value); setShowProductionDropdown(true); setProductId(null); }}
                         onFocus={() => setShowProductionDropdown(true)}
-                        placeholder="Enter Product"
+                        placeholder="Search product name or code"
                         className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                       {showProductionDropdown && filteredProductionItems.length > 0 && (

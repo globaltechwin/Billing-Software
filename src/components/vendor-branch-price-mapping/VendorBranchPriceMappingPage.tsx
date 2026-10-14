@@ -75,11 +75,13 @@ export default function VendorBranchPriceMappingPage() {
       );
     } else {
       const newMapping: VendorBranchPriceMapping = {
+        // eslint-disable-next-line react-hooks/purity
         id: Date.now().toString(),
         vendorId: selectedVendor,
         vendorName: vendor.name,
         branchId: selectedBranch,
         branchName: branch.name,
+        // eslint-disable-next-line react-hooks/purity
         prodId: String(Date.now()),
         prodName: productName.trim(),
         amount: parseFloat(amount) || 0,

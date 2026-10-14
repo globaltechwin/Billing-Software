@@ -8,7 +8,8 @@ import { IndentItem, departments } from "./data";
 interface ApiProduct {
   id: number;
   productName: string;
-  productCode: string;
+  productCode: string | null;
+  barcode?: string | null;
   unit: string;
   currentStock: number;
   isActive: boolean;
@@ -89,6 +90,7 @@ export default function IndentRequestPage() {
   // Fetch indent data when in edit mode
   useEffect(() => {
     if (!editId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingEdit(true);
     fetch("/api/indents")
       .then((res) => res.json())
@@ -145,7 +147,7 @@ export default function IndentRequestPage() {
   // Filter products (exclude already added)
   const filteredProducts = productsList.filter(
     (p) =>
-      p.productName.toLowerCase().includes(productSearch.toLowerCase()) &&
+      (p.productName.toLowerCase().includes(productSearch.trim().toLowerCase()) || (p.productCode ?? "").toLowerCase().includes(productSearch.trim().toLowerCase()) || (p.barcode ?? "").toLowerCase().includes(productSearch.trim().toLowerCase())) &&
       !items.some((i) => i.product.id === String(p.id))
   );
 
@@ -468,7 +470,7 @@ export default function IndentRequestPage() {
                 setShowProductDropdown(true);
               }}
               onFocus={() => setShowProductDropdown(true)}
-              placeholder="Enter Product"
+              placeholder="Search product name, code, or barcode"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {showProductDropdown && (
@@ -484,7 +486,7 @@ export default function IndentRequestPage() {
                       onClick={() => handleProductSelect(product)}
                       className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center justify-between border-b border-gray-50 last:border-0"
                     >
-                      <span className="text-gray-700">{product.productName}</span>
+                      <span className="text-gray-700">{product.productName}<span className="ml-2 text-xs text-gray-400">{product.productCode || product.barcode || ""}</span></span>
                       <span className="text-xs text-gray-400">
                         {product.unit} | Stock: {Number(product.currentStock).toFixed(2)}
                       </span>

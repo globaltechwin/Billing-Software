@@ -96,7 +96,7 @@ export default function ProductionConversionPage() {
   }, []);
 
   const filteredProducts = productNameSearch
-    ? products.filter((p) => p.productName.toLowerCase().includes(productNameSearch.toLowerCase()))
+    ? products.filter((p) => p.productName.toLowerCase().includes(productNameSearch.trim().toLowerCase()) || (p.productCode ?? "").toLowerCase().includes(productNameSearch.trim().toLowerCase()))
     : products;
 
   const handleClear = () => {
@@ -204,7 +204,7 @@ export default function ProductionConversionPage() {
                     value={productNameSearch}
                     onChange={(e) => { setProductNameSearch(e.target.value); setShowDropdown(true); setProductId(null); }}
                     onFocus={() => setShowDropdown(true)}
-                    placeholder="Enter Product"
+                    placeholder="Search product name or code"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                   {showDropdown && filteredProducts.length > 0 && (

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Plus, Trash2, RotateCcw } from "lucide-react";
+import InvoiceProductCodeSearch from "@/components/accounting/InvoiceProductCodeSearch";
 
 interface LineItem {
   id: string; item: string; description: string; unit: string; qty: number; rate: number; amount: number;
@@ -333,7 +334,19 @@ export default function InvoicePage() {
                   {itemsWithTax.map((item) => (
                     <tr key={item.id} className="border-b border-gray-100">
                       <td className="px-2 py-1 text-center text-sm text-gray-600 border-r border-gray-300">{item.srNo}</td>
-                      <td className="px-2 py-1 border-r border-gray-300"><input value={item.item} onChange={e => handleLineChange(item.id, "item", e.target.value)} className="w-full px-2 py-1 border border-gray-200 rounded text-sm" placeholder="Product name" /></td>
+                      <td className="px-2 py-1 border-r border-gray-300"><InvoiceProductCodeSearch
+                         value={item.item}
+                         onChange={(value) => handleLineChange(item.id, "item", value)}
+                         onSelect={(product) => {
+                           handleLineChange(item.id, "item", product.productName);
+                           handleLineChange(item.id, "rate", Number(product.sellingPrice || 0));
+                           handleLineChange(item.id, "description", product.description || "");
+                           const productUnit = String(product.unit || "NOS").toUpperCase();
+                           handleLineChange(item.id, "unit", UNITS.includes(productUnit) ? productUnit : "NOS");
+                         }}
+                         placeholder="Search product name, code, or barcode"
+                         className="w-full px-2 py-1 border border-gray-200 rounded text-sm"
+                       /></td>
                       <td className="px-2 py-1 border-r border-gray-300"><input type="number" value={item.qty} onChange={e => handleLineChange(item.id, "qty", Number(e.target.value))} className="w-full px-2 py-1 border border-gray-200 rounded text-sm text-center" /></td>
                       <td className="px-2 py-1 border-r border-gray-300"><select value={item.unit} onChange={e => handleLineChange(item.id, "unit", e.target.value)} className="w-full px-1 py-1 border border-gray-200 rounded text-sm">{UNITS.map(u => <option key={u} value={u}>{u}</option>)}</select></td>
                       <td className="px-2 py-1 border-r border-gray-300"><input type="number" value={item.rate} onChange={e => handleLineChange(item.id, "rate", Number(e.target.value))} className="w-full px-2 py-1 border border-gray-200 rounded text-sm text-right" /></td>

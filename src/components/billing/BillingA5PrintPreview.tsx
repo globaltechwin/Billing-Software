@@ -189,10 +189,10 @@ export default function BillingA5PrintPreview({
   }
 
   const itemsWithTax = invoice.items.map((item, idx) => {
-    const taxableValue = item.subtotal;
-    const cgstAmt = showCgstSgst ? item.cgstAmount : 0;
-    const sgstAmt = showCgstSgst ? item.sgstAmount : 0;
-    const igstAmt = showIgst ? item.igstAmount : 0;
+    const taxableValue = Number(item.unitPrice || 0) * Number(item.quantity || 0);
+    const cgstAmt = showCgstSgst ? Number(item.cgstAmount || 0) : 0;
+    const sgstAmt = showCgstSgst ? Number(item.sgstAmount || 0) : 0;
+    const igstAmt = showIgst ? Number(item.igstAmount || 0) : 0;
     const totalAmount = taxableValue + cgstAmt + sgstAmt + igstAmt;
     return { ...item, srNo: idx + 1, taxableValue, cgstAmt, sgstAmt, igstAmt, totalAmount };
   });
@@ -202,7 +202,7 @@ export default function BillingA5PrintPreview({
   const totalSgst = itemsWithTax.reduce((s, i) => s + i.sgstAmt, 0);
   const totalIgst = itemsWithTax.reduce((s, i) => s + i.igstAmt, 0);
   const totalQty = itemsWithTax.reduce((s, i) => s + i.quantity, 0);
-  const grandTotal = invoice.grandTotal;
+  const grandTotal = Number(invoice.grandTotal || 0);
   const amountInWords = numberToWords(Math.round(grandTotal));
 
   const fullAddress = [company.address, company.city, company.stateName, company.pincode].filter(Boolean).join(", ");
@@ -240,49 +240,55 @@ export default function BillingA5PrintPreview({
 
         <div ref={printRef} className="p-6 print-invoice-area">
           <style>{`
-            @page { size: A5 portrait; margin: 1mm; }
+            @page { size: A5 portrait; margin: 5mm; }
             .print-a5 {
-              width: 158mm;
-              height: 170mm;
+              width: 138mm;
+              max-width: 138mm;
+              min-height: 0;
               box-sizing: border-box;
               margin: 0 auto;
               font-family: 'Segoe UI', Arial, sans-serif;
               font-size: 8px;
               color: #000;
+              background: #fff;
             }
             @media print {
               html, body {
-                width: 158mm !important;
-                height: 210mm !important;
+                width: auto !important;
+                height: auto !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 overflow: visible !important;
               }
-              body > *:not(.print-invoice-area) { display: none !important; }
               body * { visibility: hidden !important; }
-              .print-invoice-area, .print-invoice-area .print-a5, .print-invoice-area .print-a5 * {
-                visibility: visible !important;
-              }
+              .print-invoice-area, .print-invoice-area .print-a5,
+              .print-invoice-area .print-a5 * { visibility: visible !important; }
               .print-invoice-area {
                 display: block !important;
                 position: static !important;
-                width: 158mm !important;
-                height: 210mm !important;
+                width: 138mm !important;
+                max-width: 138mm !important;
                 margin: 0 auto !important;
                 padding: 0 !important;
                 overflow: visible !important;
                 background: #fff !important;
+                box-sizing: border-box !important;
               }
-              .print-a5 {
+              .print-invoice-area .print-a5 {
+                display: block !important;
                 position: static !important;
-                width: 158mm !important;
-                height: 210mm !important;
-                margin: 0 !important;
+                width: 138mm !important;
+                max-width: 138mm !important;
+                min-height: 0 !important;
+                height: auto !important;
+                margin: 0 auto !important;
                 padding: 0 !important;
-                zoom: 0.78;
+                box-sizing: border-box !important;
+                zoom: 1 !important;
                 transform: none !important;
               }
-              .print-a5 table { max-width: 100% !important; }
+              .print-a5 table { width: 100% !important; max-width: 100% !important; table-layout: fixed; border-collapse: collapse; }
+              .print-a5 th, .print-a5 td { overflow-wrap: anywhere; }
               .print-a5 tr { break-inside: avoid; page-break-inside: avoid; }
             }
           `}</style>
@@ -374,15 +380,15 @@ export default function BillingA5PrintPreview({
                     <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "right" }}>{fmt(item.taxableValue)}</td>
                     {showCgstSgst && (
                       <>
-                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{(item.cgstPercentage || cgstRate).toFixed(2)}%</td>
+                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{Number(item.cgstPercentage ?? cgstRate ?? 0).toFixed(2)}%</td>
                         <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "right" }}>{fmt(item.cgstAmt)}</td>
-                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{(item.sgstPercentage || sgstRate).toFixed(2)}%</td>
+                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{Number(item.sgstPercentage ?? sgstRate ?? 0).toFixed(2)}%</td>
                         <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "right" }}>{fmt(item.sgstAmt)}</td>
                       </>
                     )}
                     {showIgst && (
                       <>
-                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{(item.igstPercentage || igstRate).toFixed(2)}%</td>
+                        <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "center" }}>{Number(item.igstPercentage ?? igstRate ?? 0).toFixed(2)}%</td>
                         <td style={{ border: "1px solid #000", padding: "3px 6px", fontSize: "9px", textAlign: "right" }}>{fmt(item.igstAmt)}</td>
                       </>
                     )}

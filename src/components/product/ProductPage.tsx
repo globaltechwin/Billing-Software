@@ -3,14 +3,13 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Lock,
-  Upload,
   Download,
   ChevronDown,
   ChevronUp,
   Cloud,
   Loader2,
 } from "lucide-react";
-import { productCategories, visibleInOptions, orderTypes, categoryUomMap } from "./data";
+import { visibleInOptions, orderTypes, categoryUomMap } from "./data";
 
 interface ProductRecord {
   id: number;
@@ -45,6 +44,7 @@ export default function ProductPage() {
   const [loading, setLoading] = useState(true);
   const [gstRates, setGstRates] = useState<GSTRate[]>([]);
   const [vendorsList, setVendorsList] = useState<ApiVendor[]>([]);
+  const [productCategories, setProductCategories] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -53,7 +53,7 @@ export default function ProductPage() {
   // Form state
   const [productCode, setProductCode] = useState("");
   const [productName, setProductName] = useState("");
-  const [category, setCategory] = useState("Cat");
+  const [category, setCategory] = useState("");
   const [vendor, setVendor] = useState("--Select Vendor--");
   const [uom, setUom] = useState(categoryUomMap["Cat"][0]);
   const [visibleIn, setVisibleIn] = useState("Both Billing and Inventory");
@@ -77,10 +77,46 @@ export default function ProductPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importingExcel, setImportingExcel] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
+
+  const handleExcelUpload = async () => {
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) {
+      setSaveError("Please choose an Excel file first.");
+      return;
+    }
+    if (!/\.xlsx?$/i.test(file.name)) {
+      setSaveError("Please select an .xlsx or .xls Excel file.");
+      return;
+    }
+    setImportingExcel(true);
+    setSaveError("");
+    setImportMessage("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/products/import", { method: "POST", body: formData });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Excel import failed.");
+      const failedRows = Array.isArray(result.errors) ? result.errors : [];
+      const summary = `Imported ${result.importedCount ?? 0} product(s). ${result.skippedCount ?? failedRows.length} row(s) skipped.`;
+      setImportMessage(failedRows.length ? `${summary} First issue: ${failedRows[0].message}` : summary);
+      await fetchProducts();
+      setActiveTab("active");
+      setSearchQuery("");
+      setCurrentPage(1);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Excel import failed.");
+    } finally {
+      setImportingExcel(false);
+    }
+  };
 
   // Get UOM options for the selected category
   const getUomOptions = (cat: string): string[] => {
-    return categoryUomMap[cat] || categoryUomMap["Cat"];
+    return categoryUomMap[cat] || categoryUomMap["Cat"] || ["NOS"];
   };
 
   const fetchProducts = async () => {
@@ -107,6 +143,17 @@ export default function ProductPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    fetch("/api/product-categories")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.categories)) {
+          const names = data.categories.filter((c: { name?: string; isActive?: boolean }) => c.isActive && typeof c.name === "string").map((c: { name: string }) => c.name);
+          setProductCategories(names);
+          setCategory((current) => current && names.includes(current) ? current : (names[0] || ""));
+          if (names.length) setCategoryFilter((current) => current === "All Categories" || names.includes(current) ? current : "All Categories");
+        }
+      })
+      .catch(() => setSaveError("Could not load product categories from the database."));
     fetch("/api/gst-rates")
       .then((res) => res.json())
       .then((data) => {
@@ -199,7 +246,7 @@ export default function ProductPage() {
     setEditingId(null);
     setProductCode("");
     setProductName("");
-    setCategory("Cat");
+    setCategory(productCategories[0] || "");
     setVendor("--Select Vendor--");
     setUom(categoryUomMap["Cat"][0]);
     setVisibleIn("Both Billing and Inventory");
@@ -255,6 +302,11 @@ export default function ProductPage() {
       {saveError && (
         <div className="fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm font-medium">
           {saveError}
+        </div>
+      )}
+      {importMessage && (
+        <div className="fixed top-16 right-4 bg-emerald-700 text-white px-6 py-3 rounded-lg shadow-lg z-50 text-sm font-medium max-w-xl">
+          {importMessage}
         </div>
       )}
 
@@ -320,6 +372,7 @@ export default function ProductPage() {
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
+                  {productCategories.length === 0 && <option value="">No active categories available</option>}
                   {productCategories.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
@@ -454,8 +507,13 @@ export default function ProductPage() {
             <div className="border-t border-gray-200 pt-4">
               <h3 className="text-sm font-medium text-gray-700 mb-3">Bulk Upload</h3>
               <div className="flex items-center gap-3">
-                <button className="px-5 py-2 bg-purple-500 text-white rounded-md text-sm font-medium hover:bg-purple-600 transition-colors">
-                  Upload Excel
+                <button
+                  type="button"
+                  onClick={handleExcelUpload}
+                  disabled={importingExcel}
+                  className="px-5 py-2 bg-purple-500 text-white rounded-md text-sm font-medium hover:bg-purple-600 transition-colors disabled:opacity-60"
+                >
+                  {importingExcel ? "Uploading..." : "Upload Excel"}
                 </button>
               </div>
               <div className="flex items-center gap-4 mt-3">
@@ -463,6 +521,8 @@ export default function ProductPage() {
                   <input
                     type="file"
                     ref={fileInputRef}
+                    onChange={() => { setSaveError(""); setImportMessage(""); }}
+                    accept=".xlsx,.xls"
                     className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-gray-300 file:text-sm file:bg-white file:text-gray-700 hover:file:bg-gray-50"
                   />
                 </div>
