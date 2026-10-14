@@ -20,4 +20,4 @@ Optional columns: productCode, category, purchasePrice, barcode, hsnCode, curren
 Numbers must be non-negative. isActive accepts true/false, yes/no, 1/0, active/inactive.
 Maximum: 1,000 rows per upload.
 
-Note: This uploader accepts CSV UTF-8 files (Excel-compatible CSV), not native .xlsx files. Download Products also exports CSV that excel.
+Note: This uploader accepts CSV UTF-8 files (Excel-compatible CSV), not native .xlsx files. Download Products also exports CSV that excel files.
